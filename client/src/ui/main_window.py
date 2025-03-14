@@ -257,8 +257,15 @@ def create_gui(client):
     """Create and return the GUI application and main window."""
     app = QApplication.instance() or QApplication(sys.argv)
     
-    # Set application icon
-    icon_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'resources', 'app.icns')
+    # Set application icon based on platform
+    resources_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'resources')
+    if sys.platform == 'darwin':
+        icon_path = os.path.join(resources_dir, 'app.icns')
+    elif sys.platform == 'win32':
+        icon_path = os.path.join(resources_dir, 'app.ico')
+    else:  # Linux/Unix
+        icon_path = os.path.join(resources_dir, 'app.png')
+        
     if os.path.exists(icon_path):
         app.setWindowIcon(QIcon(icon_path))
     
