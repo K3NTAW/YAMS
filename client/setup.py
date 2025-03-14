@@ -2,7 +2,7 @@ from setuptools import setup
 
 APP = ['src/main.py']
 DATA_FILES = [
-    ('assets/icons', ['assets/icons/app.svg', 'assets/icons/app.icns']),
+    ('assets/icons', ['assets/icons/app.svg']),
     ('extensions', ['extensions/__init__.py']),
     ('extensions/installed', ['extensions/installed/__init__.py'])
 ]
@@ -15,10 +15,8 @@ OPTIONS = {
         'CFBundleVersion': "1.0.0",
         'CFBundleShortVersionString': "1.0.0",
         'LSMinimumSystemVersion': '10.15',
-        'NSHumanReadableCopyright': 'Copyright 2025 YAMS',
-        'CFBundleIconFile': 'app.icns',
+        'NSHumanReadableCopyright': 'Copyright 2025 YAMS'
     },
-    'iconfile': 'assets/icons/app.icns',
     'packages': ['PyQt6', 'cryptography', 'websockets', 'dotenv', 'darkdetect', 'psutil'],
     'includes': ['cryptography', 'websockets', 'dotenv', 'darkdetect', 'psutil'],
 }
