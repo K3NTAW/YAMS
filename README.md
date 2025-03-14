@@ -10,7 +10,6 @@ A modern, plugin-based device management system built with Python and PyQt6. Fea
   - Hot-reload support for plugins
 
 - 🎨 **Modern UI**:
-  - Dark/Light theme support
   - System tray integration
   - Responsive design
 
