@@ -422,8 +422,13 @@ class MainWindow(QMainWindow):
 
     def init_tray_icon(self):
         """Initialize the system tray icon."""
-        icon_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), 
-                                'assets', 'icons', 'app.svg')
+        assets_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), 'assets', 'icons')
+        if sys.platform == 'darwin':
+            icon_path = os.path.join(assets_dir, 'app.icns')
+        elif sys.platform == 'win32':
+            icon_path = os.path.join(assets_dir, 'app.ico')
+        else:
+            icon_path = os.path.join(assets_dir, 'app.svg')
         if os.path.exists(icon_path):
             self.tray_icon = QSystemTrayIcon(self)
             self.tray_icon.setIcon(QIcon(icon_path))

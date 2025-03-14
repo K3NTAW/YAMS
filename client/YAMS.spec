@@ -22,8 +22,6 @@ hidden_imports = [
 
 # Collect all data files
 datas = [
-    ('resources/app.svg', 'resources'),
-    ('resources/app.icns', 'resources'),
     ('extensions/installed/*.py', 'extensions/installed'),
 ]
 
@@ -43,6 +41,11 @@ a = Analysis(
     noarchive=False,
 )
 
+a.datas += [
+    ('assets/icons/app.svg', 'assets/icons'),
+    ('assets/icons/app.icns', 'assets/icons'),
+]
+
 pyz = PYZ(a.pure, a.zipped_data, cipher=block_cipher)
 
 exe = EXE(
@@ -60,13 +63,13 @@ exe = EXE(
     target_arch=None,
     codesign_identity=None,
     entitlements_file=None,
-    icon='resources/app.icns'
+    icon='assets/icons/app.icns'
 )
 
 app = BUNDLE(
     exe,
     name='YAMS.app',
-    icon='resources/app.icns',
+    icon='assets/icons/app.icns',
     bundle_identifier='com.yams.client',
     info_plist={
         'LSMinimumSystemVersion': '10.12',
