@@ -4,6 +4,22 @@ import json
 import subprocess
 from datetime import datetime
 
+def setup_plugin_dirs():
+    """Set up plugin directories."""
+    print("Setting up plugin directories...")
+    plugin_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), "extensions", "installed")
+    os.makedirs(plugin_dir, exist_ok=True)
+    
+    # Create __init__.py files
+    init_files = [
+        os.path.join(os.path.dirname(plugin_dir), "__init__.py"),
+        os.path.join(plugin_dir, "__init__.py")
+    ]
+    for init_file in init_files:
+        if not os.path.exists(init_file):
+            with open(init_file, 'w') as f:
+                f.write("# Plugin package initialization\n")
+
 def build_app():
     """Build the app using py2app."""
     print("Building application bundle...")
@@ -76,6 +92,7 @@ def get_version():
 
 def main():
     try:
+        setup_plugin_dirs()
         build_app()
         build_dmg()
         print("Build completed successfully!")
