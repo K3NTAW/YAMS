@@ -282,66 +282,36 @@ class MainWindow(QMainWindow):
             return {"servers": {}, "default_server": ""}
         
     def init_ui(self):
-        self.setWindowTitle("Remote Device Manager")
-        self.setMinimumSize(1000, 700)
-        
-        # Set window style
-        self.setStyleSheet("""
-            QMainWindow {
-                background: palette(window);
-            }
-            QTabWidget::pane {
-                border: 1px solid palette(mid);
-                border-radius: 3px;
-            }
-            QTabBar::tab {
-                padding: 8px 16px;
-            }
-            QTabBar::tab:selected {
-                background: palette(highlight);
-                color: palette(highlighted-text);
-            }
-            QTreeWidget {
-                border: 2px solid palette(mid);
-                border-radius: 6px;
-                background: palette(base);
-                padding: 8px;
-            }
-            QTreeWidget::item {
-                padding: 6px;
-                border-radius: 4px;
-            }
-            QTreeWidget::item:hover {
-                background: palette(midlight);
-            }
-            QTreeWidget::item:selected {
-                background: palette(highlight);
-                color: palette(highlightedtext);
-            }
-            QStatusBar {
-                border-top: 2px solid palette(mid);
-                padding: 8px;
-                font-weight: bold;
-            }
-            QLabel {
-                font-size: 13px;
-            }
-            QRadioButton {
-                font-size: 13px;
-                padding: 4px;
-            }
-            QRadioButton::indicator {
-                width: 18px;
-                height: 18px;
-            }
-        """)
+        """Initialize the user interface."""
+        self.setWindowTitle('Device Manager')
+        self.setMinimumWidth(800)
+        self.setMinimumHeight(600)
         
         # Create central widget and layout
         central_widget = QWidget()
         self.setCentralWidget(central_widget)
         layout = QVBoxLayout(central_widget)
-        layout.setContentsMargins(20, 20, 20, 20)
-        layout.setSpacing(10)
+        
+        # Create header with plugin management
+        header_layout = QHBoxLayout()
+        
+        # Plugin management button with icon
+        plugin_btn = ModernButton("Manage Plugins", primary=True)
+        plugin_btn.setIcon(self.style().standardIcon(QStyle.StandardPixmap.SP_DialogSaveButton))
+        plugin_btn.clicked.connect(self.show_plugin_manager)
+        plugin_btn.setToolTip("Install, update, or manage plugins")
+        header_layout.addWidget(plugin_btn)
+        
+        header_layout.addStretch()
+        layout.addLayout(header_layout)
+        
+        # Add status bar
+        self.status_bar = QStatusBar()
+        self.setStatusBar(self.status_bar)
+        self.status_bar.showMessage('Ready')
+        
+        # Setup system tray
+        self.setup_system_tray()
         
         # Create tab widget
         tabs = QTabWidget()
@@ -506,13 +476,6 @@ class MainWindow(QMainWindow):
         self.auto_radio.toggled.connect(self.update_server_mode)
         self.server_combo.currentTextChanged.connect(self.update_server_url)
         
-        # Status bar
-        self.status_bar = QStatusBar()
-        self.setStatusBar(self.status_bar)
-        
-        # System tray
-        self.setup_system_tray()
-        
         # Start client thread
         self.start_client()
     
@@ -531,6 +494,14 @@ class MainWindow(QMainWindow):
         tray_menu.addAction(quit_action)
         self.tray_icon.setContextMenu(tray_menu)
         self.tray_icon.show()
+    
+    def show_plugin_manager(self):
+        """Show the plugin manager dialog."""
+        if hasattr(self.client, 'plugin_loader'):
+            self.client.plugin_loader.show_plugin_manager(self)
+            # Update status bar to show number of loaded plugins
+            num_plugins = len(self.client.plugin_loader.list_plugins())
+            self.status_bar.showMessage(f'Loaded {num_plugins} plugins')
     
     def update_server_mode(self, checked):
         if checked:  # Automatic mode

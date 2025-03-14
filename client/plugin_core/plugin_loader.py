@@ -2,6 +2,8 @@ import importlib
 import os
 import sys
 from typing import Dict, Any, Optional
+from .plugin_manager_ui import PluginManagerDialog
+from PyQt6.QtWidgets import QWidget
 
 class PluginLoader:
     """A class to handle loading and managing plugins."""
@@ -14,7 +16,16 @@ class PluginLoader:
         """
         self.plugin_dir = plugin_dir
         self.plugins = {}
+        self._ensure_plugin_dir()
         self._load_plugins()
+    
+    def _ensure_plugin_dir(self) -> None:
+        """Ensure the plugin directory exists."""
+        os.makedirs(self.plugin_dir, exist_ok=True)
+        init_file = os.path.join(self.plugin_dir, '__init__.py')
+        if not os.path.exists(init_file):
+            with open(init_file, 'w') as f:
+                f.write('# Plugin directory\n')
     
     def _load_plugins(self) -> None:
         """Load all plugins from the plugin directory."""
@@ -56,3 +67,18 @@ class PluginLoader:
             Dictionary mapping plugin names to plugin instances
         """
         return self.plugins.copy()
+        
+    def reload_plugins(self) -> None:
+        """Reload all plugins."""
+        self.plugins.clear()
+        self._load_plugins()
+        
+    def show_plugin_manager(self, parent: Optional[QWidget] = None) -> None:
+        """Show the plugin manager dialog.
+        
+        Args:
+            parent: Optional parent widget for the dialog
+        """
+        dialog = PluginManagerDialog(self.plugin_dir, parent)
+        if dialog.exec():
+            self.reload_plugins()
