@@ -4,7 +4,9 @@ APP = ['src/main.py']
 DATA_FILES = [
     ('assets/icons', ['assets/icons/app.svg']),
     ('extensions', ['extensions/__init__.py']),
-    ('extensions/installed', ['extensions/installed/__init__.py'])
+    ('extensions/installed', ['extensions/installed/__init__.py']),
+    ('src/extensions', ['src/extensions/__init__.py']),
+    ('src/extensions/installed', ['src/extensions/installed/__init__.py'])
 ]
 OPTIONS = {
     'argv_emulation': True,
@@ -19,6 +21,7 @@ OPTIONS = {
     },
     'packages': ['PyQt6', 'cryptography', 'websockets', 'dotenv', 'darkdetect', 'psutil'],
     'includes': ['cryptography', 'websockets', 'dotenv', 'darkdetect', 'psutil'],
+    'resources': ['assets', 'extensions', 'src/extensions']
 }
 
 setup(

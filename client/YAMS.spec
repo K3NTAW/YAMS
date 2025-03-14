@@ -18,13 +18,13 @@ hidden_imports = [
     'websockets',
     'darkdetect',
     'psutil'
-] + collect_submodules('plugin_core')
+]
 
 # Collect all data files
 datas = [
     ('resources/app.svg', 'resources'),
     ('resources/app.icns', 'resources'),
-    ('plugin_core/plugins/*.py', 'plugin_core/plugins'),
+    ('extensions/installed/*.py', 'extensions/installed'),
 ]
 
 a = Analysis(

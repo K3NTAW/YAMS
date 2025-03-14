@@ -128,8 +128,8 @@ class MainWindow(QMainWindow):
         """Refresh the list of installed plugins."""
         self.plugin_list.clear()
         if hasattr(self.client, 'plugin_loader') and self.client.plugin_loader:
-            plugins = self.client.plugin_loader.get_plugins()
-            for name in plugins:
+            plugins = self.client.plugin_loader.plugins
+            for name, plugin in plugins.items():
                 item = QTreeWidgetItem(self.plugin_list)
                 item.setText(0, name)
                 item.setText(1, 'Loaded')
@@ -145,7 +145,7 @@ class MainWindow(QMainWindow):
         status_parts = []
         
         if hasattr(self.client, 'plugin_loader') and self.client.plugin_loader:
-            plugins = self.client.plugin_loader.get_plugins()
+            plugins = self.client.plugin_loader.plugins
             status_parts.append(f'Plugins: {len(plugins)}')
         
         status_parts.append(f'Server: {"Online" if is_connected else "Offline"}')
