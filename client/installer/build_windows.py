@@ -47,8 +47,8 @@ def build_windows_executable():
             'src/main.py',  # Your main script
             '--name=YAMS',  # Name of the executable
             '--windowed',   # Windows subsystem executable (no console)
-            '--icon=resources/app.ico',  # Application icon
-            '--add-data=resources;resources',  # Include resources directory
+            '--icon=assets/icons/app.ico',  # Application icon
+            '--add-data=assets;assets',  # Include assets directory
             '--hidden-import=PyQt6.QtCore',
             '--hidden-import=PyQt6.QtGui',
             '--hidden-import=PyQt6.QtWidgets',

@@ -9,8 +9,8 @@ InstallDirRegKey HKCU "Software\YAMS" ""
 
 ; Interface Settings
 !define MUI_ABORTWARNING
-!define MUI_ICON "..\resources\app.ico"
-!define MUI_UNICON "..\resources\app.ico"
+!define MUI_ICON "..\assets\icons\app.ico"
+!define MUI_UNICON "..\assets\icons\app.ico"
 
 ; Pages
 !insertmacro MUI_PAGE_WELCOME

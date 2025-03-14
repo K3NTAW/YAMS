@@ -4,7 +4,7 @@ from __future__ import unicode_literals
 import os.path
 
 # Use custom volume icon
-icon = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'resources', 'app.icns')
+icon = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'assets', 'icons', 'app.icns')
 
 # Volume format (see hdiutil create -help)
 format = 'UDBZ'
@@ -23,7 +23,7 @@ symlinks = {
 }
 
 # Volume icon
-badge_icon = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'resources', 'app.icns')
+badge_icon = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'assets', 'icons', 'app.icns')
 
 # Window configuration
 window_rect = ((100, 100), (640, 280))

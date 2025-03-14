@@ -2,14 +2,14 @@ from setuptools import setup
 
 APP = ['src/main.py']
 DATA_FILES = [
-    ('assets/icons', ['assets/icons/app.svg']),
+    ('assets/icons', ['assets/icons/app.icns']),
     ('extensions', ['extensions/__init__.py']),
     ('extensions/installed', ['extensions/installed/__init__.py']),
     ('src/extensions', ['src/extensions/__init__.py']),
     ('src/extensions/installed', ['src/extensions/installed/__init__.py'])
 ]
 OPTIONS = {
-    'argv_emulation': True,
+    'argv_emulation': False,  
     'plist': {
         'CFBundleName': 'YAMS',
         'CFBundleDisplayName': 'YAMS',
@@ -17,11 +17,16 @@ OPTIONS = {
         'CFBundleVersion': "1.0.0",
         'CFBundleShortVersionString': "1.0.0",
         'LSMinimumSystemVersion': '10.15',
-        'NSHumanReadableCopyright': 'Copyright 2025 YAMS'
+        'NSHumanReadableCopyright': 'Copyright 2025 YAMS',
+        'CFBundleIconFile': 'app.icns'
     },
     'packages': ['PyQt6', 'cryptography', 'websockets', 'dotenv', 'darkdetect', 'psutil'],
     'includes': ['cryptography', 'websockets', 'dotenv', 'darkdetect', 'psutil'],
-    'resources': ['assets', 'extensions', 'src/extensions']
+    'excludes': [],
+    'resources': ['assets', 'extensions', 'src/extensions'],
+    'iconfile': 'assets/icons/app.icns',
+    'strip': True,
+    'optimize': 2
 }
 
 setup(
