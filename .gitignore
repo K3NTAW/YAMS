@@ -1,0 +1,50 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# PyInstaller
+*.manifest
+*.spec
+build/
+dist/
+
+# Virtual Environment
+venv/
+env/
+ENV/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+.DS_Store
+
+# Application specific
+*.log
+.env
+*.db
+client/plugin_core/plugins/*
+!client/plugin_core/plugins/__init__.py
+!client/plugin_core/plugins/hello.py
+!client/plugin_core/plugins/wol_plugin.py
+!client/plugin_core/plugins/filesystem_plugin.py
+!client/plugin_core/plugins/app_manager_plugin.py
