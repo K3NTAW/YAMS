@@ -9,11 +9,6 @@ A modern, plugin-based device management system built with Python and PyQt6. Fea
   - User-friendly plugin management interface
   - Hot-reload support for plugins
 
-- 🖥️ **Built-in Plugins**:
-  - File System Manager: Browse and manage files
-  - Application Manager: Start and control applications
-  - Wake-on-LAN: Remote wake up of network devices
-
 - 🎨 **Modern UI**:
   - Dark/Light theme support
   - System tray integration
