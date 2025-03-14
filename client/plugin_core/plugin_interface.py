@@ -12,7 +12,7 @@ class PluginInterface(ABC):
             config: Configuration dictionary for the plugin
             
         Returns:
-            True if initialization was successful, False otherwise
+            bool: True if initialization was successful, False otherwise
         """
         pass
         
@@ -21,10 +21,10 @@ class PluginInterface(ABC):
         """Execute a command with the given parameters.
         
         Args:
-            command: Command to execute
+            command: The command to execute
             params: Parameters for the command
             
         Returns:
-            Dictionary containing the results of the command
+            dict: Result of the command execution
         """
         pass

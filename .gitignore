@@ -22,7 +22,7 @@ wheels/
 
 # PyInstaller
 *.manifest
-*.spec
+!YAMS.spec
 build/
 dist/
 
@@ -44,7 +44,3 @@ ENV/
 *.db
 client/plugin_core/plugins/*
 !client/plugin_core/plugins/__init__.py
-!client/plugin_core/plugins/hello.py
-!client/plugin_core/plugins/wol_plugin.py
-!client/plugin_core/plugins/filesystem_plugin.py
-!client/plugin_core/plugins/app_manager_plugin.py

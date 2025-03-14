@@ -7,25 +7,27 @@ import uuid
 from dotenv import load_dotenv
 from pathlib import Path
 from cryptography.fernet import Fernet
+from PyQt6.QtWidgets import QApplication
 
-# Add the root directory to the Python path
-root_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-if root_dir not in sys.path:
-    sys.path.insert(0, root_dir)
+# Add the client directory to the Python path
+client_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+if client_dir not in sys.path:
+    sys.path.insert(0, client_dir)
 
 from plugin_core.plugin_interface import PluginInterface
 from plugin_core.plugin_loader import PluginLoader
+from plugin_core.plugin_manager_ui import PluginManagerDialog
 from client.gui import create_gui
 
 def setup_plugins():
     """Setup the plugin system."""
     try:
-        plugin_dir = os.path.join(root_dir, "plugin_core", "plugins")
+        plugin_dir = os.path.join(client_dir, "plugin_core", "plugins")
         os.makedirs(plugin_dir, exist_ok=True)
         
         # Create __init__.py files if they don't exist
         init_files = [
-            os.path.join(root_dir, "plugin_core", "__init__.py"),
+            os.path.join(client_dir, "plugin_core", "__init__.py"),
             os.path.join(plugin_dir, "__init__.py")
         ]
         for init_file in init_files:
@@ -48,7 +50,7 @@ class DeviceClient:
         self.client_secret = os.getenv('CLIENT_SECRET') or Fernet.generate_key().decode()
         
         # Load server configuration
-        self.server_url = 'ws://localhost:8765'
+        self.server_url = os.getenv('SERVER_URL', 'ws://localhost:8765')
         
         # Initialize plugin system
         self.setup_plugin_system()
@@ -60,14 +62,36 @@ class DeviceClient:
         except Exception as e:
             print(f"Error setting up plugin system: {e}")
 
+    async def connect_to_server(self):
+        """Try to connect to the server."""
+        try:
+            async with websockets.connect(self.server_url) as websocket:
+                # Send initial connection message
+                await websocket.send(json.dumps({
+                    "type": "connect",
+                    "client_id": self.client_id
+                }))
+                
+                while True:
+                    message = await websocket.recv()
+                    data = json.loads(message)
+                    # Handle server messages here
+                    print(f"Received message: {data}")
+        except Exception as e:
+            print(f"Server connection error: {e}")
+            return False
+        return True
+
 def main():
     try:
-        client = DeviceClient()
-        app, window = create_gui(client)  # Unpack both app and window
-        sys.exit(app.exec())
+        app = QApplication(sys.argv)
+        client = DeviceClient()  # Remove offline mode parameter
+        app, window = create_gui(client)
+        window.show()
+        return app.exec()
     except Exception as e:
         print(f"Application error: {e}")
-        sys.exit(1)
+        return 1
 
 if __name__ == "__main__":
-    main()
+    sys.exit(main())

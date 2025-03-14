@@ -9,11 +9,6 @@ A modern, plugin-based device management system built with Python and PyQt6. Fea
   - User-friendly plugin management interface
   - Hot-reload support for plugins
 
-- 🖥️ **Built-in Plugins**:
-  - File System Manager: Browse and manage files
-  - Application Manager: Start and control applications
-  - Wake-on-LAN: Remote wake up of network devices
-
 - 🎨 **Modern UI**:
   - Dark/Light theme support
   - System tray integration
@@ -84,7 +79,7 @@ def setup_plugin():
 client/
 ├── client/           # Core application code
 ├── plugin_core/      # Plugin system
-│   ├── plugins/      # Plugin directory
+│   ├── plugins/      # Plugin directory (empty by default)
 │   ├── interface.py  # Plugin interface
 │   └── loader.py     # Plugin loader
 ├── requirements.txt  # Dependencies
@@ -100,7 +95,7 @@ pytest
 
 Build a standalone executable:
 ```bash
-pyinstaller client/client.spec
+pyinstaller YAMS.spec
 ```
 
 The executable will be created in the `dist` directory.
