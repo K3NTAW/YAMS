@@ -1,12 +1,50 @@
 import sys
 import os
+import asyncio
 from PyQt6.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
                             QPushButton, QLabel, QSystemTrayIcon, QMenu, QMessageBox,
                             QStatusBar, QTabWidget, QGroupBox, QRadioButton, QLineEdit,
-                            QTreeWidget, QTreeWidgetItem)
+                            QTreeWidget, QTreeWidgetItem, QListWidget, QListWidgetItem)
 from PyQt6.QtCore import Qt, QTimer
-from PyQt6.QtGui import QIcon
-from extensions.manager import PluginManagerDialog
+from PyQt6.QtGui import QIcon, QDragEnterEvent, QDropEvent
+
+class ServerListWidget(QListWidget):
+    """Custom list widget that supports drag and drop of server names."""
+    
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setAcceptDrops(True)
+        self.setDragDropMode(QListWidget.DragDropMode.DragDrop)
+        
+        # Add some default servers
+        default_servers = {
+            "Main Server": "ws://main.yams.com:8765",
+            "Backup Server": "ws://backup.yams.com:8765",
+            "Development": "ws://dev.yams.com:8765",
+            "Local": "ws://localhost:8765"
+        }
+        
+        for name, url in default_servers.items():
+            item = QListWidgetItem(name)
+            item.setData(Qt.ItemDataRole.UserRole, url)
+            self.addItem(item)
+    
+    def dragEnterEvent(self, event: QDragEnterEvent):
+        """Accept drag events for server names."""
+        if event.mimeData().hasText():
+            event.acceptProposedAction()
+    
+    def dropEvent(self, event: QDropEvent):
+        """Handle drop events for server names."""
+        text = event.mimeData().text()
+        if text:
+            item = self.itemAt(event.pos())
+            if item:
+                url = item.data(Qt.ItemDataRole.UserRole)
+                self.parent().url_input.setText(url)
+                self.parent().manual_radio.setChecked(False)
+                self.parent().auto_radio.setChecked(True)
+                self.parent().url_input.setReadOnly(True)
 
 class MainWindow(QMainWindow):
     def __init__(self, client):
@@ -60,15 +98,23 @@ class MainWindow(QMainWindow):
         mode_layout = QHBoxLayout()
         self.auto_radio = QRadioButton("Automatic")
         self.manual_radio = QRadioButton("Manual")
+        self.auto_radio.toggled.connect(self.on_mode_changed)
+        self.manual_radio.toggled.connect(self.on_mode_changed)
         mode_layout.addWidget(self.auto_radio)
         mode_layout.addWidget(self.manual_radio)
         server_group_layout.addLayout(mode_layout)
+
+        # Server list (only visible in automatic mode)
+        self.server_list = ServerListWidget(self)
+        self.server_list.itemClicked.connect(self.on_server_selected)
+        server_group_layout.addWidget(self.server_list)
 
         # Server URL
         url_layout = QHBoxLayout()
         url_label = QLabel("Server URL:")
         self.url_input = QLineEdit()
         self.url_input.setText(self.client.server_url)
+        self.url_input.setReadOnly(True)  # Initially readonly as automatic mode is default
         url_layout.addWidget(url_label)
         url_layout.addWidget(self.url_input)
         server_group_layout.addLayout(url_layout)
@@ -93,8 +139,11 @@ class MainWindow(QMainWindow):
         self.secret_input = QLineEdit()
         self.secret_input.setText(self.client.client_secret)
         self.secret_input.setEchoMode(QLineEdit.EchoMode.Password)
+        show_secret_btn = QPushButton("Show Secret")
+        show_secret_btn.clicked.connect(self.toggle_secret_visibility)
         secret_layout.addWidget(secret_label)
         secret_layout.addWidget(self.secret_input)
+        secret_layout.addWidget(show_secret_btn)
         client_layout.addLayout(secret_layout)
 
         client_group.setLayout(client_layout)
@@ -113,6 +162,29 @@ class MainWindow(QMainWindow):
 
         # Set initial server mode
         self.auto_radio.setChecked(True)
+        self.manual_radio.setChecked(False)
+        self.on_mode_changed()
+
+    def on_mode_changed(self):
+        """Handle server mode changes."""
+        is_auto = self.auto_radio.isChecked()
+        self.server_list.setVisible(is_auto)
+        self.url_input.setReadOnly(is_auto)
+        if not is_auto:
+            self.url_input.clear()
+            self.url_input.setPlaceholderText("Enter server URL (e.g., ws://localhost:8765)")
+        else:
+            # Reset to the first server in the list
+            if self.server_list.count() > 0:
+                first_item = self.server_list.item(0)
+                self.url_input.setText(first_item.data(Qt.ItemDataRole.UserRole))
+
+    def on_server_selected(self, item: QListWidgetItem):
+        """Handle server selection from the list."""
+        if item and self.auto_radio.isChecked():
+            url = item.data(Qt.ItemDataRole.UserRole)
+            self.url_input.setText(url)
+            self.client.server_url = url
 
     def show_plugin_manager(self):
         """Show the plugin manager dialog."""
@@ -135,10 +207,15 @@ class MainWindow(QMainWindow):
                 item.setText(1, 'Loaded')
                 self.plugin_list.addTopLevelItem(item)
 
-    async def check_server_status(self):
+    def check_server_status(self):
         """Check server connection status."""
-        is_connected = await self.client.connect_to_server()
-        self.update_status(is_connected)
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        try:
+            is_connected = loop.run_until_complete(self.client.connect_to_server())
+            self.update_status(is_connected)
+        finally:
+            loop.close()
 
     def update_status(self, is_connected=False):
         """Update the status bar."""
@@ -151,6 +228,30 @@ class MainWindow(QMainWindow):
         status_parts.append(f'Server: {"Online" if is_connected else "Offline"}')
         status_parts.append(f'Server URL: {self.client.server_url}')
         self.statusBar.showMessage(' | '.join(status_parts))
+
+    def toggle_secret_visibility(self):
+        """Toggle the visibility of the client secret with warning."""
+        if self.secret_input.echoMode() == QLineEdit.EchoMode.Password:
+            reply = QMessageBox.warning(
+                self,
+                "Security Warning",
+                "The client secret is sensitive information that should be kept private.\n"
+                "Only reveal it if you are in a secure environment.\n\n"
+                "Do you want to show the secret?",
+                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+                QMessageBox.StandardButton.No
+            )
+            
+            if reply == QMessageBox.StandardButton.Yes:
+                self.secret_input.setEchoMode(QLineEdit.EchoMode.Normal)
+                sender = self.sender()
+                if sender:
+                    sender.setText("Hide Secret")
+        else:
+            self.secret_input.setEchoMode(QLineEdit.EchoMode.Password)
+            sender = self.sender()
+            if sender:
+                sender.setText("Show Secret")
 
 def create_gui(client):
     """Create and return the GUI application and main window."""

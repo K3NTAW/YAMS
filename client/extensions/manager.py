@@ -55,9 +55,10 @@ class PluginManagerDialog(QDialog):
         """Refresh the list of installed plugins."""
         self.plugin_list.clear()
         if os.path.exists(self.plugin_dir):
-            for filename in os.listdir(self.plugin_dir):
-                if filename.endswith('.py') and filename != '__init__.py':
-                    item = QListWidgetItem(filename)
+            for item in os.listdir(self.plugin_dir):
+                item_path = os.path.join(self.plugin_dir, item)
+                if os.path.isfile(item_path) and item.endswith('.py') and item != '__init__.py':
+                    item = QListWidgetItem(item)
                     self.plugin_list.addItem(item)
     
     def install_plugin(self):
@@ -161,7 +162,8 @@ class PluginManagerDialog(QDialog):
         """Handle drag enter events for plugin installation."""
         if event.mimeData().hasUrls():
             for url in event.mimeData().urls():
-                if url.toLocalFile().endswith('.py'):
+                file_path = url.toLocalFile()
+                if isinstance(file_path, str) and file_path.endswith('.py'):
                     event.acceptProposedAction()
                     return
     
@@ -169,5 +171,5 @@ class PluginManagerDialog(QDialog):
         """Handle drop events for plugin installation."""
         for url in event.mimeData().urls():
             file_path = url.toLocalFile()
-            if file_path.endswith('.py'):
+            if isinstance(file_path, str) and file_path.endswith('.py'):
                 self.install_plugin_file(file_path)
