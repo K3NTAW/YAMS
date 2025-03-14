@@ -7,7 +7,7 @@ from PyQt6.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout, QH
                             QTreeWidget, QTreeWidgetItem, QListWidget, QListWidgetItem,
                             QDialog, QFileDialog)
 from PyQt6.QtCore import Qt, QTimer, pyqtSignal
-from PyQt6.QtGui import QIcon, QDragEnterEvent, QDropEvent
+from PyQt6.QtGui import QIcon, QDragEnterEvent, QDropEvent, QAction
 
 class ServerListWidget(QListWidget):
     """Custom list widget that supports drag and drop of server names."""
@@ -221,9 +221,63 @@ class MainWindow(QMainWindow):
         super().__init__()
         self.client = client
         self.init_ui()
+        self.init_tray_icon()
         self.server_status_timer = QTimer()
         self.server_status_timer.timeout.connect(self.check_server_status)
         self.server_status_timer.start(5000)  # Check every 5 seconds
+
+    def init_tray_icon(self):
+        """Initialize the system tray icon."""
+        icon_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), 
+                                'assets', 'icons', 'app.icns')
+        if os.path.exists(icon_path):
+            self.tray_icon = QSystemTrayIcon(self)
+            self.tray_icon.setIcon(QIcon(icon_path))
+            
+            # Create tray menu
+            tray_menu = QMenu()
+            
+            # Show/Hide action
+            show_action = QAction("Show", self)
+            show_action.triggered.connect(self.show)
+            tray_menu.addAction(show_action)
+            
+            # Add separator
+            tray_menu.addSeparator()
+            
+            # Quit action
+            quit_action = QAction("Quit", self)
+            quit_action.triggered.connect(QApplication.instance().quit)
+            tray_menu.addAction(quit_action)
+            
+            # Set the menu
+            self.tray_icon.setContextMenu(tray_menu)
+            
+            # Show icon
+            self.tray_icon.show()
+            
+            # Set window icon
+            self.setWindowIcon(QIcon(icon_path))
+            
+            # Connect double click to show window
+            self.tray_icon.activated.connect(self.on_tray_icon_activated)
+            
+            # Show startup notification
+            self.tray_icon.showMessage(
+                "YAMS",
+                "YAMS is running in the system tray",
+                QSystemTrayIcon.MessageIcon.Information,
+                2000
+            )
+
+    def on_tray_icon_activated(self, reason):
+        """Handle tray icon activation."""
+        if reason == QSystemTrayIcon.ActivationReason.DoubleClick:
+            if self.isVisible():
+                self.hide()
+            else:
+                self.show()
+                self.activateWindow()
 
     def init_ui(self):
         """Initialize the user interface."""
@@ -422,6 +476,20 @@ class MainWindow(QMainWindow):
             sender = self.sender()
             if sender:
                 sender.setText("Show Secret")
+
+    def closeEvent(self, event):
+        """Override close event to minimize to tray instead of closing."""
+        if hasattr(self, 'tray_icon') and self.tray_icon.isVisible():
+            QMessageBox.information(
+                self,
+                "YAMS",
+                "YAMS will keep running in the system tray. To quit the application, "
+                "choose 'Quit' in the tray menu."
+            )
+            self.hide()
+            event.ignore()
+        else:
+            event.accept()
 
 def create_gui(client):
     """Create and return the GUI application and main window."""
