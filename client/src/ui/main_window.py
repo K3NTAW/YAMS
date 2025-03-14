@@ -5,9 +5,12 @@ from PyQt6.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout, QH
                             QPushButton, QLabel, QSystemTrayIcon, QMenu, QMessageBox,
                             QStatusBar, QTabWidget, QGroupBox, QRadioButton, QLineEdit,
                             QTreeWidget, QTreeWidgetItem, QListWidget, QListWidgetItem,
-                            QDialog, QFileDialog)
-from PyQt6.QtCore import Qt, QTimer, pyqtSignal
-from PyQt6.QtGui import QIcon, QDragEnterEvent, QDropEvent, QAction
+                            QDialog, QFileDialog, QFrame, QSpacerItem, QSizePolicy,
+                            QToolBar, QStyle)
+from PyQt6.QtCore import Qt, QTimer, pyqtSignal, QSettings
+from PyQt6.QtGui import QIcon, QDragEnterEvent, QDropEvent, QAction, QFont, QPalette, QColor
+import darkdetect
+from .theme import ThemeManager
 
 class ServerListWidget(QListWidget):
     """Custom list widget that supports drag and drop of server names."""
@@ -57,6 +60,10 @@ class PluginManagerDialog(QDialog):
         self.plugin_dir = plugin_dir
         self.init_ui()
         
+        # Apply theme from parent window
+        if parent and hasattr(parent, 'is_dark_mode'):
+            ThemeManager.apply_theme(self, parent.is_dark_mode)
+    
     def init_ui(self):
         """Initialize the user interface."""
         self.setWindowTitle('Plugin Manager')
@@ -64,6 +71,8 @@ class PluginManagerDialog(QDialog):
         
         # Main layout
         layout = QVBoxLayout(self)
+        layout.setContentsMargins(20, 20, 20, 20)
+        layout.setSpacing(15)
         
         # Plugin list
         self.plugin_list = QListWidget()
@@ -75,6 +84,7 @@ class PluginManagerDialog(QDialog):
         
         # Buttons
         button_layout = QHBoxLayout()
+        button_layout.setSpacing(10)
         
         install_btn = QPushButton("Install Plugin")
         install_btn.clicked.connect(self.install_plugin)
@@ -220,74 +230,46 @@ class MainWindow(QMainWindow):
     def __init__(self, client):
         super().__init__()
         self.client = client
+        self.settings = QSettings('YAMS', 'DeviceManager')
+        
+        # Initialize theme
+        self.is_dark_mode = self.settings.value('dark_mode', None)
+        if self.is_dark_mode is None:
+            self.is_dark_mode = darkdetect.isDark()
+        else:
+            self.is_dark_mode = bool(self.is_dark_mode)  # Convert to bool
+        
         self.init_ui()
         self.init_tray_icon()
         self.server_status_timer = QTimer()
         self.server_status_timer.timeout.connect(self.check_server_status)
         self.server_status_timer.start(5000)  # Check every 5 seconds
-
-    def init_tray_icon(self):
-        """Initialize the system tray icon."""
-        icon_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), 
-                                'assets', 'icons', 'app.icns')
-        if os.path.exists(icon_path):
-            self.tray_icon = QSystemTrayIcon(self)
-            self.tray_icon.setIcon(QIcon(icon_path))
-            
-            # Create tray menu
-            tray_menu = QMenu()
-            
-            # Show/Hide action
-            show_action = QAction("Show", self)
-            show_action.triggered.connect(self.show)
-            tray_menu.addAction(show_action)
-            
-            # Add separator
-            tray_menu.addSeparator()
-            
-            # Quit action
-            quit_action = QAction("Quit", self)
-            quit_action.triggered.connect(QApplication.instance().quit)
-            tray_menu.addAction(quit_action)
-            
-            # Set the menu
-            self.tray_icon.setContextMenu(tray_menu)
-            
-            # Show icon
-            self.tray_icon.show()
-            
-            # Set window icon
-            self.setWindowIcon(QIcon(icon_path))
-            
-            # Connect double click to show window
-            self.tray_icon.activated.connect(self.on_tray_icon_activated)
-            
-            # Show startup notification
-            self.tray_icon.showMessage(
-                "YAMS",
-                "YAMS is running in the system tray",
-                QSystemTrayIcon.MessageIcon.Information,
-                2000
-            )
-
-    def on_tray_icon_activated(self, reason):
-        """Handle tray icon activation."""
-        if reason == QSystemTrayIcon.ActivationReason.DoubleClick:
-            if self.isVisible():
-                self.hide()
-            else:
-                self.show()
-                self.activateWindow()
+        
+        # Apply initial theme
+        self.apply_theme()
 
     def init_ui(self):
         """Initialize the user interface."""
         self.setWindowTitle('YAMS Device Manager')
-        self.setMinimumSize(800, 600)
-
+        self.setMinimumSize(900, 600)
+        
+        # Create toolbar
+        toolbar = QToolBar()
+        toolbar.setMovable(False)
+        toolbar.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextBesideIcon)
+        self.addToolBar(toolbar)
+        
+        # Theme toggle action
+        self.theme_action = QAction('Toggle Theme', self)
+        self.theme_action.triggered.connect(self.toggle_theme)
+        toolbar.addAction(self.theme_action)
+        
         # Create central widget and layout
         central_widget = QWidget()
         self.setCentralWidget(central_widget)
         layout = QVBoxLayout(central_widget)
+        layout.setContentsMargins(20, 20, 20, 20)
+        layout.setSpacing(15)
 
         # Create tab widget
         tabs = QTabWidget()
@@ -296,15 +278,39 @@ class MainWindow(QMainWindow):
         # Plugin Manager tab
         plugin_tab = QWidget()
         plugin_layout = QVBoxLayout(plugin_tab)
+        plugin_layout.setContentsMargins(20, 20, 20, 20)
+        plugin_layout.setSpacing(15)
+        
+        # Header section
+        header_layout = QHBoxLayout()
+        header_label = QLabel("Plugin Management")
+        header_font = QFont()
+        header_font.setPointSize(14)
+        header_font.setBold(True)
+        header_label.setFont(header_font)
+        header_layout.addWidget(header_label)
+        header_layout.addStretch()
         
         # Plugin manager button
         manage_plugins_btn = QPushButton('Manage Plugins', self)
         manage_plugins_btn.clicked.connect(self.show_plugin_manager)
-        plugin_layout.addWidget(manage_plugins_btn)
+        header_layout.addWidget(manage_plugins_btn)
+        plugin_layout.addLayout(header_layout)
+
+        # Add separator
+        line = QFrame()
+        line.setFrameShape(QFrame.Shape.HLine)
+        line.setFrameShadow(QFrame.Shadow.Sunken)
+        plugin_layout.addWidget(line)
 
         # Plugin list
+        plugin_list_label = QLabel("Installed Plugins")
+        plugin_list_label.setStyleSheet("font-weight: bold;")
+        plugin_layout.addWidget(plugin_list_label)
+        
         self.plugin_list = QTreeWidget()
         self.plugin_list.setHeaderLabels(['Plugin', 'Status'])
+        self.plugin_list.setAlternatingRowColors(True)
         self.refresh_plugin_list()
         plugin_layout.addWidget(self.plugin_list)
         
@@ -313,22 +319,27 @@ class MainWindow(QMainWindow):
         # Server tab
         server_tab = QWidget()
         server_layout = QVBoxLayout(server_tab)
+        server_layout.setContentsMargins(20, 20, 20, 20)
+        server_layout.setSpacing(15)
 
         # Server Configuration
         server_group = QGroupBox("Server Configuration")
         server_group_layout = QVBoxLayout()
+        server_group_layout.setSpacing(15)
 
         # Connection mode
         mode_layout = QHBoxLayout()
+        mode_layout.setSpacing(20)
         self.auto_radio = QRadioButton("Automatic")
         self.manual_radio = QRadioButton("Manual")
         self.auto_radio.toggled.connect(self.on_mode_changed)
         self.manual_radio.toggled.connect(self.on_mode_changed)
         mode_layout.addWidget(self.auto_radio)
         mode_layout.addWidget(self.manual_radio)
+        mode_layout.addStretch()
         server_group_layout.addLayout(mode_layout)
 
-        # Server list (only visible in automatic mode)
+        # Server list
         self.server_list = ServerListWidget(self)
         self.server_list.itemClicked.connect(self.on_server_selected)
         server_group_layout.addWidget(self.server_list)
@@ -338,14 +349,18 @@ class MainWindow(QMainWindow):
         url_label = QLabel("Server URL:")
         self.url_input = QLineEdit()
         self.url_input.setText(self.client.server_url)
-        self.url_input.setReadOnly(True)  # Initially readonly as automatic mode is default
+        self.url_input.setReadOnly(True)
         url_layout.addWidget(url_label)
         url_layout.addWidget(self.url_input)
         server_group_layout.addLayout(url_layout)
 
+        server_group.setLayout(server_group_layout)
+        server_layout.addWidget(server_group)
+
         # Client Configuration
         client_group = QGroupBox("Client Configuration")
         client_layout = QVBoxLayout()
+        client_layout.setSpacing(15)
 
         # Client ID
         id_layout = QHBoxLayout()
@@ -371,9 +386,6 @@ class MainWindow(QMainWindow):
         client_layout.addLayout(secret_layout)
 
         client_group.setLayout(client_layout)
-        server_group.setLayout(server_group_layout)
-
-        server_layout.addWidget(server_group)
         server_layout.addWidget(client_group)
         server_layout.addStretch()
 
@@ -389,26 +401,87 @@ class MainWindow(QMainWindow):
         self.manual_radio.setChecked(False)
         self.on_mode_changed()
 
-    def on_mode_changed(self):
-        """Handle server mode changes."""
-        is_auto = self.auto_radio.isChecked()
-        self.server_list.setVisible(is_auto)
-        self.url_input.setReadOnly(is_auto)
-        if not is_auto:
-            self.url_input.clear()
-            self.url_input.setPlaceholderText("Enter server URL (e.g., ws://localhost:8765)")
-        else:
-            # Reset to the first server in the list
-            if self.server_list.count() > 0:
-                first_item = self.server_list.item(0)
-                self.url_input.setText(first_item.data(Qt.ItemDataRole.UserRole))
+    def toggle_theme(self):
+        """Toggle between light and dark mode."""
+        self.is_dark_mode = not self.is_dark_mode
+        self.settings.setValue('dark_mode', self.is_dark_mode)
+        self.apply_theme()
+        
+    def apply_theme(self):
+        """Apply the current theme to the application."""
+        ThemeManager.apply_theme(self, self.is_dark_mode)
+        
+        # Update theme action text
+        self.theme_action.setText('Switch to Light Mode' if self.is_dark_mode else 'Switch to Dark Mode')
+        self.theme_action.setIcon(
+            self.style().standardIcon(
+                QStyle.StandardPixmap.SP_DialogHelpButton if self.is_dark_mode 
+                else QStyle.StandardPixmap.SP_DialogHelpButton
+            )
+        )
 
-    def on_server_selected(self, item: QListWidgetItem):
-        """Handle server selection from the list."""
-        if item and self.auto_radio.isChecked():
-            url = item.data(Qt.ItemDataRole.UserRole)
-            self.url_input.setText(url)
-            self.client.server_url = url
+    def init_tray_icon(self):
+        """Initialize the system tray icon."""
+        icon_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), 
+                                'assets', 'icons', 'app.svg')
+        if os.path.exists(icon_path):
+            self.tray_icon = QSystemTrayIcon(self)
+            self.tray_icon.setIcon(QIcon(icon_path))
+            
+            # Create tray menu
+            tray_menu = QMenu()
+            
+            # Show/Hide action
+            show_action = QAction("Show", self)
+            show_action.triggered.connect(self.show)
+            tray_menu.addAction(show_action)
+            
+            # Add separator
+            tray_menu.addSeparator()
+            
+            # Quit action
+            quit_action = QAction("Quit", self)
+            quit_action.triggered.connect(self.quit_application)
+            tray_menu.addAction(quit_action)
+            
+            # Set the menu
+            self.tray_icon.setContextMenu(tray_menu)
+            
+            # Show icon
+            self.tray_icon.show()
+            
+            # Set window icon
+            self.setWindowIcon(QIcon(icon_path))
+            
+            # Connect double click to show window
+            self.tray_icon.activated.connect(self.on_tray_icon_activated)
+            
+            # Show startup notification
+            self.tray_icon.showMessage(
+                "YAMS",
+                "YAMS is running in the system tray",
+                QSystemTrayIcon.MessageIcon.Information,
+                2000
+            )
+
+    def quit_application(self):
+        """Quit the application cleanly."""
+        # Save settings
+        self.settings.sync()
+        # Hide tray icon
+        if hasattr(self, 'tray_icon'):
+            self.tray_icon.hide()
+        # Quit application
+        QApplication.instance().quit()
+
+    def on_tray_icon_activated(self, reason):
+        """Handle tray icon activation."""
+        if reason == QSystemTrayIcon.ActivationReason.DoubleClick:
+            if self.isVisible():
+                self.hide()
+            else:
+                self.show()
+                self.activateWindow()
 
     def show_plugin_manager(self):
         """Show the plugin manager dialog."""
@@ -478,18 +551,33 @@ class MainWindow(QMainWindow):
                 sender.setText("Show Secret")
 
     def closeEvent(self, event):
-        """Override close event to minimize to tray instead of closing."""
-        if hasattr(self, 'tray_icon') and self.tray_icon.isVisible():
-            QMessageBox.information(
-                self,
-                "YAMS",
-                "YAMS will keep running in the system tray. To quit the application, "
-                "choose 'Quit' in the tray menu."
-            )
-            self.hide()
-            event.ignore()
+        """Handle window close event."""
+        # Save window state and settings
+        self.settings.sync()
+        # Accept the close event and quit the application
+        event.accept()
+        QApplication.instance().quit()
+
+    def on_mode_changed(self):
+        """Handle server mode changes."""
+        is_auto = self.auto_radio.isChecked()
+        self.server_list.setVisible(is_auto)
+        self.url_input.setReadOnly(is_auto)
+        if not is_auto:
+            self.url_input.clear()
+            self.url_input.setPlaceholderText("Enter server URL (e.g., ws://localhost:8765)")
         else:
-            event.accept()
+            # Reset to the first server in the list
+            if self.server_list.count() > 0:
+                first_item = self.server_list.item(0)
+                self.url_input.setText(first_item.data(Qt.ItemDataRole.UserRole))
+
+    def on_server_selected(self, item: QListWidgetItem):
+        """Handle server selection from the list."""
+        if item and self.auto_radio.isChecked():
+            url = item.data(Qt.ItemDataRole.UserRole)
+            self.url_input.setText(url)
+            self.client.server_url = url
 
 def create_gui(client):
     """Create and return the GUI application and main window."""
