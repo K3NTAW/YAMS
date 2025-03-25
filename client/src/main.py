@@ -4,11 +4,16 @@ import os
 import sys
 import websockets
 import uuid
+import warnings
 from dotenv import load_dotenv
 from pathlib import Path
 from cryptography.fernet import Fernet
 from PyQt6.QtWidgets import QApplication, QMessageBox
 from PyQt6.QtCore import QTimer
+
+# Suppress macOS TSM warnings
+os.environ['QT_MAC_WANTS_LAYER'] = '1'
+warnings.filterwarnings("ignore", category=RuntimeWarning)
 
 # Version information
 __version__ = "1.0.0"

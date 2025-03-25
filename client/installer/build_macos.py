@@ -58,19 +58,16 @@ def build_macos_app():
         }
 
         # py2app options
-        includes = ['PyQt6.QtCore', 'PyQt6.QtGui', 'PyQt6.QtWidgets']
-        excludes = ['tkinter', 'unittest']
-        packages = ['PyQt6', 'websockets', 'cryptography', 'dotenv']
         options = {
             'py2app': {
                 'argv_emulation': False,
-                'packages': packages,
-                'includes': includes,
-                'excludes': excludes,
-                'resources': ['assets', 'extensions'],
-                'iconfile': 'assets/icons/app.icns',
+                'packages': ['PyQt6', 'websockets', 'cryptography', 'dotenv'],
+                'includes': ['PyQt6.QtCore', 'PyQt6.QtGui', 'PyQt6.QtWidgets'],
+                'resources': ['resources', 'extensions'],
+                'iconfile': 'resources/app.icns',
                 'plist': info_plist,
                 'frameworks': [],  # Add any required frameworks
+                'excludes': ['tkinter', 'unittest'],
                 'strip': True,
                 'optimize': 2,
             }

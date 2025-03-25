@@ -13,20 +13,38 @@ if root_dir not in sys.path:
 
 # Collect all required modules
 hidden_imports = [
+    'PyQt6.QtCore',
+    'PyQt6.QtGui',
+    'PyQt6.QtWidgets',
     'PyQt6.sip',
     'cryptography',
     'websockets',
     'darkdetect',
-    'psutil'
+    'psutil',
+    'yaml',
+    'json',
+    'asyncio',
+    'aiohttp',
+    'ssl',
+    'logging'
 ]
 
 # Collect all data files
 datas = [
+    ('assets/icons/app.svg', 'assets/icons'),
+    ('assets/icons/app.icns', 'assets/icons'),
     ('extensions/installed/*.py', 'extensions/installed'),
+    ('src/ui/*.py', 'src/ui'),
+    ('src/core/*.py', 'src/core'),
+    ('src/*.py', 'src'),
 ]
 
+# Add PyQt6 plugins
+qt_plugins = collect_data_files('PyQt6', include_py_files=True)
+datas.extend(qt_plugins)
+
 a = Analysis(
-    ['client/client_app.py'],
+    ['src/main.py'],
     pathex=[root_dir],
     binaries=[],
     datas=datas,
@@ -34,31 +52,53 @@ a = Analysis(
     hookspath=[],
     hooksconfig={},
     runtime_hooks=[],
-    excludes=[],
+    excludes=['PyQt6.QtQml', 'PyQt6.QtQuick', 'PyQt6.Qt3D', 'PyQt6.QtBluetooth', 'PyQt6.QtWebEngine'],
     win_no_prefer_redirects=False,
     win_private_assemblies=False,
     cipher=block_cipher,
     noarchive=False,
 )
 
-a.datas += [
-    ('assets/icons/app.svg', 'assets/icons'),
-    ('assets/icons/app.icns', 'assets/icons'),
+# Remove unwanted Qt plugins
+qt_plugin_filters = [
+    'qmltooling',
+    'sceneparsers',
+    'renderplugins',
+    'renderers',
+    'qml',
+    'webview',
+    'sqldrivers',
+    'multimedia',
 ]
+
+binaries_to_keep = []
+for binary in a.binaries:
+    should_keep = True
+    for filter_term in qt_plugin_filters:
+        if filter_term in binary[0].lower():
+            should_keep = False
+            break
+    if should_keep:
+        binaries_to_keep.append(binary)
+a.binaries = binaries_to_keep
 
 pyz = PYZ(a.pure, a.zipped_data, cipher=block_cipher)
 
 exe = EXE(
     pyz,
     a.scripts,
+    a.binaries,
+    a.zipfiles,
+    a.datas,
     [],
-    exclude_binaries=True,
     name='YAMS',
-    debug=False,
+    debug=True,
     bootloader_ignore_signals=False,
     strip=False,
     upx=True,
-    console=False,
+    upx_exclude=[],
+    runtime_tmpdir=None,
+    console=True,
     disable_windowed_traceback=False,
     target_arch=None,
     codesign_identity=None,
