@@ -3,7 +3,7 @@ from PyQt6.QtWidgets import (QDialog, QVBoxLayout, QHBoxLayout, QPushButton,
                             QWidget, QFrame)
 from PyQt6.QtCore import Qt, pyqtSignal
 from PyQt6.QtGui import QFont, QIcon
-from client.src.core.database import DatabaseManager
+from ..core.database import DatabaseManager
 import uuid
 import secrets
 
@@ -223,12 +223,17 @@ class LoginWindow(QDialog):
         """Handle login attempt."""
         username = self.username_input.text()
         password = self.password_input.text()
-        user_id, error = self.db.authenticate_user(username, password)
-        if user_id:
-            self.login_successful.emit(user_id)
+        
+        # Get user info from database
+        user_info = self.db.authenticate_user(username, password)
+        if user_info:
+            self.user_id = user_info['id']
+            self.username = user_info['username']
+            self.client_id = user_info['client_id']
+            self.client_secret = user_info['client_secret']
             self.accept()
         else:
-            QMessageBox.warning(self, 'Login Failed', error or 'Invalid credentials')
+            QMessageBox.warning(self, 'Login Failed', 'Invalid credentials')
     
     def register(self):
         """Handle registration attempt."""
@@ -268,3 +273,9 @@ class LoginWindow(QDialog):
             self.reg_confirm_password.clear()
         else:
             QMessageBox.warning(self, 'Registration Failed', error)
+    
+    def closeEvent(self, event):
+        """Handle window close event."""
+        # If user clicks X button, reject the dialog which will close the app
+        self.reject()
+        event.accept()

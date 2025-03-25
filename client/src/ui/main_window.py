@@ -3,15 +3,18 @@ from PyQt6.QtWidgets import (QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
                              QDialog, QMessageBox, QStackedWidget, QListWidget,
                              QListWidgetItem, QTreeWidget, QTreeWidgetItem,
                              QTabWidget, QGroupBox, QRadioButton, QLineEdit,
-                             QToolBar, QStyle, QCheckBox, QStatusBar, QApplication)
-from PyQt6.QtCore import Qt, QTimer, pyqtSignal, QSettings
-from PyQt6.QtGui import QIcon, QAction
-from client.src.ui.auth_window import LoginWindow
-from client.src.ui.theme import ModernSidebarButton, ModernTabWidget, COLORS
-from client.src.core.database import DatabaseManager
+                             QToolBar, QStyle, QCheckBox, QStatusBar, QApplication,
+                             QSizePolicy)
+from PyQt6.QtCore import Qt, QTimer, pyqtSignal, QSettings, QMimeData
+from PyQt6.QtGui import QIcon, QAction, QDragEnterEvent, QDropEvent
+from .auth_window import LoginWindow
+from .theme import ModernSidebarButton, ModernTabWidget, COLORS
+from ..core.database import DatabaseManager
 import sys
 import os
 import asyncio
+import websockets
+import json
 
 class ServerListWidget(QListWidget):
     """Custom list widget that supports drag and drop of server names."""
@@ -228,28 +231,27 @@ class PluginManagerDialog(QDialog):
                 self.install_plugin_file(file_path)
 
 class MainWindow(QMainWindow):
-    def __init__(self, client):
+    def __init__(self, user_info):
         super().__init__()
-        self.user_id = None
-        self.username = None
-        self.client_id = None
-        self.client_secret = None
-        self.db = DatabaseManager()
-        self.settings = QSettings('Codeium', 'YAMS')
+        self.server_url = "ws://localhost:8765"
+        self.url_input = None  # Initialize as None
+        
+        # Store user info
+        if not user_info:
+            raise ValueError("User info is required")
+            
+        self.user_id = user_info['id']
+        self.username = user_info['username']
+        self.client_id = user_info['client_id']
+        self.client_secret = user_info['client_secret']
+        
         self.init_ui()
-        self.show_login()
-
+        # Don't show login here, it will be called explicitly
+    
     def init_ui(self):
         """Initialize the user interface."""
         self.setWindowTitle('YAMS')
-        self.setMinimumSize(1000, 600)
-        
-        # Set window style
-        self.setStyleSheet(f"""
-            QMainWindow {{
-                background-color: {COLORS['background']};
-            }}
-        """)
+        self.setMinimumSize(800, 600)
         
         # Create central widget and main layout
         central_widget = QWidget()
@@ -260,83 +262,146 @@ class MainWindow(QMainWindow):
         
         # Create sidebar
         sidebar = QWidget()
+        sidebar.setObjectName("sidebar")
         sidebar.setFixedWidth(200)
-        sidebar.setStyleSheet(f"""
-            QWidget {{
-                background-color: {COLORS['sidebar']};
-                border-right: 1px solid {COLORS['border']};
-            }}
-        """)
         sidebar_layout = QVBoxLayout(sidebar)
-        sidebar_layout.setContentsMargins(0, 20, 0, 20)
-        sidebar_layout.setSpacing(8)
+        sidebar_layout.setContentsMargins(0, 0, 0, 0)
+        sidebar_layout.setSpacing(0)
         
-        # Add logo/title at the top of sidebar
-        title_label = QLabel('YAMS')
-        title_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        title_label.setStyleSheet(f"""
-            QLabel {{
-                color: {COLORS['primary']};
-                font-size: 24px;
-                font-weight: bold;
-                padding: 20px;
-            }}
-        """)
-        sidebar_layout.addWidget(title_label)
+        # Add logo/title at the top
+        title_widget = QWidget()
+        title_widget.setObjectName("titleWidget")
+        title_layout = QVBoxLayout(title_widget)
+        title_layout.setContentsMargins(20, 20, 20, 20)
         
-        # Create sidebar buttons
-        self.dashboard_btn = ModernSidebarButton('Dashboard')
-        self.dashboard_btn.setChecked(True)
-        self.devices_btn = ModernSidebarButton('Devices')
-        self.plugins_btn = ModernSidebarButton('Plugins')
-        self.settings_btn = ModernSidebarButton('Settings')
+        title_label = QLabel("YAMS")
+        title_label.setObjectName("titleLabel")
+        title_layout.addWidget(title_label)
         
-        # Add buttons to sidebar
-        sidebar_layout.addWidget(self.dashboard_btn)
-        sidebar_layout.addWidget(self.devices_btn)
-        sidebar_layout.addWidget(self.plugins_btn)
-        sidebar_layout.addWidget(self.settings_btn)
+        subtitle_label = QLabel("Yet Another Management System")
+        subtitle_label.setObjectName("subtitleLabel")
+        title_layout.addWidget(subtitle_label)
         
-        # Add stretch to push profile to bottom
-        sidebar_layout.addStretch()
+        sidebar_layout.addWidget(title_widget)
+        
+        # Add navigation buttons
+        nav_widget = QWidget()
+        nav_layout = QVBoxLayout(nav_widget)
+        nav_layout.setContentsMargins(0, 0, 0, 0)
+        nav_layout.setSpacing(0)
+        
+        self.dashboard_btn = ModernSidebarButton("Dashboard", "dashboard")
+        self.devices_btn = ModernSidebarButton("Devices", "devices")
+        self.plugins_btn = ModernSidebarButton("Plugins", "plugins")
+        self.settings_btn = ModernSidebarButton("Settings", "settings")
+        
+        nav_layout.addWidget(self.dashboard_btn)
+        nav_layout.addWidget(self.devices_btn)
+        nav_layout.addWidget(self.plugins_btn)
+        nav_layout.addWidget(self.settings_btn)
+        nav_layout.addStretch()
         
         # Add profile button at bottom
-        self.profile_btn = ModernSidebarButton('Profile')
-        sidebar_layout.addWidget(self.profile_btn)
+        self.profile_btn = ModernSidebarButton("Profile", "profile")
+        nav_layout.addWidget(self.profile_btn)
+        
+        sidebar_layout.addWidget(nav_widget)
+        main_layout.addWidget(sidebar)
         
         # Create stacked widget for content
         self.content_stack = QStackedWidget()
-        self.content_stack.setStyleSheet(f"""
-            QStackedWidget {{
-                background-color: {COLORS['background']};
-                padding: 20px;
-            }}
-        """)
+        self.content_stack.setObjectName("contentStack")
         
-        # Create content pages
-        self.dashboard_page = ModernTabWidget()
-        self.devices_page = ModernTabWidget()
-        self.plugins_page = ModernTabWidget()
-        self.settings_page = ModernTabWidget()
-        self.profile_page = ModernTabWidget()
+        # Add pages
+        self.dashboard_page = QWidget()
+        self.devices_page = QWidget()
+        self.plugins_page = QWidget()
+        self.settings_page = QWidget()
         
-        # Add pages to stack
+        # Initialize dashboard page
+        dashboard_layout = QVBoxLayout()
+        dashboard_layout.setContentsMargins(20, 20, 20, 20)
+        self.dashboard_page.setLayout(dashboard_layout)
+        
+        # Server URL input
+        url_group = QWidget()
+        url_layout = QHBoxLayout()
+        url_layout.setContentsMargins(0, 0, 0, 0)
+        url_group.setLayout(url_layout)
+        
+        self.url_input = QLineEdit(self.server_url)
+        self.url_input.setPlaceholderText("Server URL (e.g., ws://localhost:8765)")
+        url_layout.addWidget(self.url_input)
+        
+        connect_btn = QPushButton("Connect")
+        connect_btn.clicked.connect(self.check_server_status)
+        url_layout.addWidget(connect_btn)
+        
+        dashboard_layout.addWidget(url_group)
+        dashboard_layout.addStretch()
+        
         self.content_stack.addWidget(self.dashboard_page)
         self.content_stack.addWidget(self.devices_page)
         self.content_stack.addWidget(self.plugins_page)
         self.content_stack.addWidget(self.settings_page)
-        self.content_stack.addWidget(self.profile_page)
         
-        # Connect button signals
-        self.dashboard_btn.clicked.connect(lambda: self.show_page(0))
-        self.devices_btn.clicked.connect(lambda: self.show_page(1))
-        self.plugins_btn.clicked.connect(lambda: self.show_page(2))
-        self.settings_btn.clicked.connect(lambda: self.show_page(3))
-        self.profile_btn.clicked.connect(lambda: self.show_page(4))
-        
-        # Add widgets to main layout
-        main_layout.addWidget(sidebar)
         main_layout.addWidget(self.content_stack)
+        
+        # Add status bar
+        self.status_bar = QStatusBar()
+        self.setStatusBar(self.status_bar)
+        self.status_bar.showMessage("Not connected to server")
+        
+        # Connect buttons
+        self.dashboard_btn.clicked.connect(lambda: self.content_stack.setCurrentWidget(self.dashboard_page))
+        self.devices_btn.clicked.connect(lambda: self.content_stack.setCurrentWidget(self.devices_page))
+        self.plugins_btn.clicked.connect(lambda: self.content_stack.setCurrentWidget(self.plugins_page))
+        self.settings_btn.clicked.connect(lambda: self.content_stack.setCurrentWidget(self.settings_page))
+        
+        # Set stylesheet
+        self.setStyleSheet("""
+            #sidebar {
+                background-color: """ + COLORS['sidebar_bg'] + """;
+                border-right: 1px solid """ + COLORS['border'] + """;
+            }
+            #titleWidget {
+                border-bottom: 1px solid """ + COLORS['border'] + """;
+            }
+            #titleLabel {
+                font-size: 24px;
+                font-weight: bold;
+                color: """ + COLORS['text'] + """;
+            }
+            #subtitleLabel {
+                font-size: 12px;
+                color: """ + COLORS['text_secondary'] + """;
+            }
+            #contentStack {
+                background-color: """ + COLORS['content_bg'] + """;
+            }
+            QLineEdit {
+                padding: 8px;
+                border: 1px solid """ + COLORS['border'] + """;
+                border-radius: 4px;
+                min-width: 300px;
+            }
+            QPushButton {
+                padding: 8px 16px;
+                background-color: """ + COLORS['primary'] + """;
+                color: white;
+                border: none;
+                border-radius: 4px;
+            }
+            QPushButton:hover {
+                background-color: """ + COLORS['primary_hover'] + """;
+            }
+            QStatusBar {
+                background-color: """ + COLORS['sidebar_bg'] + """;
+                color: """ + COLORS['text'] + """;
+                padding: 4px;
+                border-top: 1px solid """ + COLORS['border'] + """;
+            }
+        """)
         
         # Initialize system tray
         self.init_tray_icon()
@@ -360,11 +425,6 @@ class MainWindow(QMainWindow):
         self.user_button.setStyleSheet("QPushButton { border: none; padding: 5px 10px; }")
         self.user_button.clicked.connect(self.show_user_menu)
         toolbar.addWidget(self.user_button)
-        
-        # Create status bar
-        self.status_bar = QStatusBar()
-        self.setStatusBar(self.status_bar)
-        self.update_status()
         
         # Create menu bar
         menubar = self.menuBar()
@@ -428,7 +488,7 @@ class MainWindow(QMainWindow):
         self.server_list.itemClicked.connect(self.on_server_selected)
         servers_layout.addWidget(self.server_list)
         
-        self.dashboard_page.addTab(servers_tab, "Servers")
+        self.dashboard_page.setLayout(servers_layout)
         
         # Plugins tab
         plugins_tab = QWidget()
@@ -446,7 +506,7 @@ class MainWindow(QMainWindow):
         plugin_buttons.addWidget(manage_plugins_btn)
         plugins_layout.addLayout(plugin_buttons)
         
-        self.plugins_page.addTab(plugins_tab, "Plugins")
+        self.plugins_page.setLayout(plugins_layout)
         
     def show_page(self, index):
         """Show the selected page and update button states."""
@@ -462,13 +522,20 @@ class MainWindow(QMainWindow):
          self.settings_btn, self.profile_btn][index].setChecked(True)
 
     def show_login(self):
-        """Show the login window and handle the result."""
-        login_window = LoginWindow(self)
-        login_window.login_successful.connect(self.on_login_successful)
-        if login_window.exec() == QDialog.DialogCode.Accepted:
-            self.show()
+        """Show the login window."""
+        login_window = LoginWindow()
+        result = login_window.exec()
+        
+        if result == QDialog.DialogCode.Accepted:
+            # Store user info from login window
+            self.user_id = login_window.user_id
+            self.username = login_window.username
+            self.client_id = login_window.client_id
+            self.client_secret = login_window.client_secret
+            self.show()  # Only show main window after successful login
         else:
-            self.quit_application()
+            # Any other result (rejected, closed) should quit the app
+            QApplication.quit()
 
     def on_login_successful(self, user_id):
         """Handle successful login."""
@@ -490,48 +557,23 @@ class MainWindow(QMainWindow):
 
     def init_tray_icon(self):
         """Initialize the system tray icon."""
-        icon_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), 
-                                'assets', 'icons', 'app.svg')
-        if os.path.exists(icon_path):
-            self.tray_icon = QSystemTrayIcon(self)
-            self.tray_icon.setIcon(QIcon(icon_path))
-            
-            # Create tray menu
-            tray_menu = QMenu()
-            
-            # Show/Hide action
-            show_action = QAction("Show", self)
-            show_action.triggered.connect(self.show)
-            tray_menu.addAction(show_action)
-            
-            # Add separator
-            tray_menu.addSeparator()
-            
-            # Quit action
-            quit_action = QAction("Quit", self)
-            quit_action.triggered.connect(self.quit_application)
-            tray_menu.addAction(quit_action)
-            
-            # Set the menu
-            self.tray_icon.setContextMenu(tray_menu)
-            
-            # Show icon
-            self.tray_icon.show()
-            
-            # Set window icon
-            self.setWindowIcon(QIcon(icon_path))
-            
-            # Connect double click to show window
-            self.tray_icon.activated.connect(self.on_tray_icon_activated)
-            
-            # Show startup notification
-            self.tray_icon.showMessage(
-                "YAMS",
-                "YAMS is running in the system tray",
-                QSystemTrayIcon.MessageIcon.Information,
-                2000
-            )
-
+        self.tray_icon = QSystemTrayIcon(self)
+        self.tray_icon.setIcon(QIcon("client/src/ui/icons/tray.png"))
+        
+        # Create tray menu
+        tray_menu = QMenu()
+        show_action = QAction("Show", self)
+        quit_action = QAction("Quit", self)
+        
+        show_action.triggered.connect(self.show)
+        quit_action.triggered.connect(self.close)
+        
+        tray_menu.addAction(show_action)
+        tray_menu.addAction(quit_action)
+        
+        self.tray_icon.setContextMenu(tray_menu)
+        self.tray_icon.show()
+        
     def quit_application(self):
         """Quit the application cleanly."""
         # Save settings
@@ -553,8 +595,8 @@ class MainWindow(QMainWindow):
 
     def show_plugin_manager(self):
         """Show the plugin manager dialog."""
-        if hasattr(self.client, 'plugin_loader') and self.client.plugin_loader:
-            dialog = PluginManagerDialog(self.client.plugin_loader.plugin_dir, self)
+        if hasattr(self, 'plugin_loader') and self.plugin_loader:
+            dialog = PluginManagerDialog(self.plugin_loader.plugin_dir, self)
             if dialog.exec():
                 self.refresh_plugin_list()
                 self.update_status()
@@ -564,35 +606,70 @@ class MainWindow(QMainWindow):
     def refresh_plugin_list(self):
         """Refresh the list of installed plugins."""
         self.plugin_tree.clear()
-        if hasattr(self.client, 'plugin_loader') and self.client.plugin_loader:
-            plugins = self.client.plugin_loader.plugins
+        if hasattr(self, 'plugin_loader') and self.plugin_loader:
+            plugins = self.plugin_loader.plugins
             for name, plugin in plugins.items():
                 item = QTreeWidgetItem(self.plugin_tree)
                 item.setText(0, name)
                 item.setText(1, 'Loaded')
                 self.plugin_tree.addTopLevelItem(item)
 
-    def check_server_status(self):
-        """Check server connection status."""
-        loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(loop)
+    async def connect_to_server(self):
+        """Try to connect to the server."""
         try:
-            is_connected = loop.run_until_complete(self.client.connect_to_server())
+            server_url = self.url_input.text() or self.server_url
+            async with websockets.connect(server_url) as websocket:
+                # Send initial connection message
+                await websocket.send(json.dumps({
+                    "type": "connect",
+                    "client_id": self.client_id
+                }))
+                
+                while True:
+                    message = await websocket.recv()
+                    data = json.loads(message)
+                    print(f"Received message: {data}")
+        except Exception as e:
+            print(f"Server connection error: {e}")
+            return False
+        return True
+
+    def check_server_status(self):
+        """Check the server connection status."""
+        try:
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+            is_connected = loop.run_until_complete(self.connect_to_server())
             self.update_status(is_connected)
+        except Exception as e:
+            print(f"Error checking server status: {e}")
+            self.update_status(False)
         finally:
             loop.close()
 
     def update_status(self, is_connected=False):
         """Update the status bar."""
-        status_parts = []
-        
-        if hasattr(self.client, 'plugin_loader') and self.client.plugin_loader:
-            plugins = self.client.plugin_loader.plugins
-            status_parts.append(f'Plugins: {len(plugins)}')
-        
-        status_parts.append(f'Server: {"Online" if is_connected else "Offline"}')
-        status_parts.append(f'Server URL: {self.client.server_url}')
-        self.status_bar.showMessage(' | '.join(status_parts))
+        try:
+            status_parts = []
+            
+            if hasattr(self, 'plugin_loader') and self.plugin_loader:
+                plugins = self.plugin_loader.plugins
+                status_parts.append(f'Plugins: {len(plugins)}')
+            
+            status_parts.append(f'Server: {"Connected" if is_connected else "Disconnected"}')
+            
+            try:
+                server_url = self.server_url
+                if hasattr(self, 'url_input') and self.url_input and not self.url_input.isHidden():
+                    server_url = self.url_input.text() or server_url
+                status_parts.append(f'URL: {server_url}')
+            except:
+                status_parts.append(f'URL: {self.server_url}')
+            
+            self.status_bar.showMessage(' | '.join(status_parts))
+        except Exception as e:
+            print(f"Error updating status: {e}")
+            self.status_bar.showMessage("Error updating status")
 
     def toggle_theme(self):
         """Toggle between light and dark mode."""
@@ -723,9 +800,8 @@ class MainWindow(QMainWindow):
         if item and self.auto_radio.isChecked():
             url = item.data(Qt.ItemDataRole.UserRole)
             self.url_input.setText(url)
-            self.client.server_url = url
 
-def create_gui(client):
+def create_gui():
     """Create and return the GUI application and main window."""
     app = QApplication.instance() or QApplication(sys.argv)
     
@@ -741,5 +817,5 @@ def create_gui(client):
     if os.path.exists(icon_path):
         app.setWindowIcon(QIcon(icon_path))
     
-    window = MainWindow(client)
+    window = MainWindow()
     return app, window

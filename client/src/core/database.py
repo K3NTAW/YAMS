@@ -1,7 +1,6 @@
 import os
 import mysql.connector
 from dotenv import load_dotenv
-from pathlib import Path
 import bcrypt
 
 class DatabaseManager:
@@ -26,7 +25,7 @@ class DatabaseManager:
         """Connect to the MySQL database."""
         try:
             self.conn = mysql.connector.connect(
-                database=os.getenv('DB_NAME', 'yams'),
+                database=os.getenv('DB_NAME', 'yams_db'),
                 user=os.getenv('DB_USER', 'root'),
                 password=os.getenv('DB_PASSWORD', ''),
                 host=os.getenv('DB_HOST', 'localhost'),
@@ -38,14 +37,14 @@ class DatabaseManager:
             self.conn = None
 
     def authenticate_user(self, username, password):
-        """Authenticate a user."""
+        """Authenticate a user and return their information."""
         if not self.conn:
-            return None, "Database connection error"
+            return None
 
         try:
             cursor = self.conn.cursor()
             cursor.execute("""
-                SELECT id, password_hash, client_id, client_secret 
+                SELECT id, username, password_hash, client_id, client_secret 
                 FROM users 
                 WHERE username = %s
             """, (username,))
@@ -54,9 +53,9 @@ class DatabaseManager:
             cursor.close()
             
             if not result:
-                return None, "User not found"
-                
-            user_id, password_hash, client_id, client_secret = result
+                return None
+            
+            user_id, username, password_hash, client_id, client_secret = result
             
             if bcrypt.checkpw(password.encode('utf-8'), password_hash.encode('utf-8')):
                 # Update last login
@@ -69,12 +68,17 @@ class DatabaseManager:
                 self.conn.commit()
                 cursor.close()
                 
-                return user_id, None
-            else:
-                return None, "Invalid password"
+                return {
+                    'id': user_id,
+                    'username': username,
+                    'client_id': client_id,
+                    'client_secret': client_secret
+                }
+            return None
                 
         except Exception as e:
-            return None, str(e)
+            print(f"Authentication error: {e}")
+            return None
 
     def register_user(self, username, password, email, client_id, client_secret):
         """Register a new user."""
