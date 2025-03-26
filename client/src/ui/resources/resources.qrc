@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE RCC>
+<RCC version="1.0">
+    <qresource prefix="icons">
+        <file>icons/dashboard.svg</file>
+        <file>icons/devices.svg</file>
+        <file>icons/plugins.svg</file>
+        <file>icons/settings.svg</file>
+        <file>icons/profile.svg</file>
+        <file>icons/tray.svg</file>
+    </qresource>
+</RCC>

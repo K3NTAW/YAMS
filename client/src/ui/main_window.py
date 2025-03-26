@@ -1,3 +1,4 @@
+import os
 from PyQt6.QtWidgets import (QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
                              QPushButton, QLabel, QSystemTrayIcon, QMenu,
                              QDialog, QMessageBox, QStackedWidget, QListWidget,
@@ -8,13 +9,14 @@ from PyQt6.QtWidgets import (QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
 from PyQt6.QtCore import Qt, QTimer, pyqtSignal, QSettings, QMimeData
 from PyQt6.QtGui import QIcon, QAction, QDragEnterEvent, QDropEvent
 from .auth_window import LoginWindow
-from .theme import ModernSidebarButton, ModernTabWidget, COLORS
+from .theme import ModernSidebarButton, ModernTabWidget, COLORS, ThemeManager
+from .resources import resources_rc  # Import the compiled resource file
 from ..core.database import DatabaseManager
 import sys
-import os
 import asyncio
 import websockets
 import json
+import subprocess
 
 class ServerListWidget(QListWidget):
     """Custom list widget that supports drag and drop of server names."""
@@ -236,6 +238,9 @@ class MainWindow(QMainWindow):
         self.server_url = "ws://localhost:8765"
         self.url_input = None  # Initialize as None
         
+        # Get the directory containing this module for relative paths
+        self.module_dir = os.path.dirname(os.path.abspath(__file__))
+        
         # Store user info
         if not user_info:
             raise ValueError("User info is required")
@@ -245,7 +250,19 @@ class MainWindow(QMainWindow):
         self.client_id = user_info['client_id']
         self.client_secret = user_info['client_secret']
         
+        # Initialize database
+        self.db = DatabaseManager()
+        
+        # Initialize settings
+        self.settings = QSettings('Codeium', 'YAMS')
+        self.is_dark_mode = self.settings.value('dark_mode', None)  # None means follow system
+        self.start_with_system = self.settings.value('start_with_system', False, type=bool)
+        
         self.init_ui()
+        
+        # Apply theme after UI is initialized
+        self.apply_theme()
+        
         # Don't show login here, it will be called explicitly
     
     def init_ui(self):
@@ -294,16 +311,14 @@ class MainWindow(QMainWindow):
         self.devices_btn = ModernSidebarButton("Devices", "devices")
         self.plugins_btn = ModernSidebarButton("Plugins", "plugins")
         self.settings_btn = ModernSidebarButton("Settings", "settings")
+        self.profile_btn = ModernSidebarButton("Profile", "profile")
         
         nav_layout.addWidget(self.dashboard_btn)
         nav_layout.addWidget(self.devices_btn)
         nav_layout.addWidget(self.plugins_btn)
         nav_layout.addWidget(self.settings_btn)
-        nav_layout.addStretch()
-        
-        # Add profile button at bottom
-        self.profile_btn = ModernSidebarButton("Profile", "profile")
         nav_layout.addWidget(self.profile_btn)
+        nav_layout.addStretch()
         
         sidebar_layout.addWidget(nav_widget)
         main_layout.addWidget(sidebar)
@@ -312,16 +327,16 @@ class MainWindow(QMainWindow):
         self.content_stack = QStackedWidget()
         self.content_stack.setObjectName("contentStack")
         
-        # Add pages
+        # Create pages
         self.dashboard_page = QWidget()
         self.devices_page = QWidget()
         self.plugins_page = QWidget()
         self.settings_page = QWidget()
+        self.profile_page = QWidget()
         
         # Initialize dashboard page
         dashboard_layout = QVBoxLayout()
         dashboard_layout.setContentsMargins(20, 20, 20, 20)
-        self.dashboard_page.setLayout(dashboard_layout)
         
         # Server URL input
         url_group = QWidget()
@@ -331,19 +346,130 @@ class MainWindow(QMainWindow):
         
         self.url_input = QLineEdit(self.server_url)
         self.url_input.setPlaceholderText("Server URL (e.g., ws://localhost:8765)")
+        self.url_input.setParent(url_group)  # Ensure proper parent-child relationship
         url_layout.addWidget(self.url_input)
         
         connect_btn = QPushButton("Connect")
         connect_btn.clicked.connect(self.check_server_status)
+        connect_btn.setParent(url_group)  # Ensure proper parent-child relationship
         url_layout.addWidget(connect_btn)
         
         dashboard_layout.addWidget(url_group)
-        dashboard_layout.addStretch()
         
+        # Server list
+        self.server_list = ServerListWidget()
+        self.server_list.itemClicked.connect(self.on_server_selected)
+        dashboard_layout.addWidget(self.server_list)
+        
+        dashboard_layout.addStretch()
+        self.dashboard_page.setLayout(dashboard_layout)
+        
+        # Initialize devices page
+        devices_layout = QVBoxLayout()
+        devices_layout.setContentsMargins(20, 20, 20, 20)
+        devices_layout.addWidget(QLabel("Devices page - Coming soon"))
+        devices_layout.addStretch()
+        self.devices_page.setLayout(devices_layout)
+        
+        # Initialize plugins page
+        plugins_layout = QVBoxLayout()
+        plugins_layout.setContentsMargins(20, 20, 20, 20)
+        
+        # Plugin list
+        self.plugin_tree = QTreeWidget()
+        self.plugin_tree.setHeaderLabels(["Name", "Version", "Status"])
+        plugins_layout.addWidget(self.plugin_tree)
+        
+        # Plugin buttons
+        plugin_buttons = QHBoxLayout()
+        manage_plugins_btn = QPushButton("Manage Plugins")
+        manage_plugins_btn.clicked.connect(self.show_plugin_manager)
+        plugin_buttons.addWidget(manage_plugins_btn)
+        plugins_layout.addLayout(plugin_buttons)
+        plugins_layout.addStretch()
+        
+        self.plugins_page.setLayout(plugins_layout)
+        
+        # Initialize settings page
+        settings_layout = QVBoxLayout()
+        settings_layout.setContentsMargins(20, 20, 20, 20)
+        settings_layout.setSpacing(20)
+        
+        # Theme Settings Section
+        theme_group = QGroupBox("Theme Settings")
+        theme_layout = QVBoxLayout()
+        
+        # Theme radio buttons
+        self.system_theme_radio = QRadioButton("Follow System Theme")
+        self.light_theme_radio = QRadioButton("Light Theme")
+        self.dark_theme_radio = QRadioButton("Dark Theme")
+        
+        # Set initial theme selection
+        if self.is_dark_mode is None:
+            self.system_theme_radio.setChecked(True)
+        elif self.is_dark_mode:
+            self.dark_theme_radio.setChecked(True)
+        else:
+            self.light_theme_radio.setChecked(True)
+        
+        # Connect theme radio buttons
+        self.system_theme_radio.toggled.connect(lambda: self.change_theme(None))
+        self.light_theme_radio.toggled.connect(lambda: self.change_theme(False))
+        self.dark_theme_radio.toggled.connect(lambda: self.change_theme(True))
+        
+        theme_layout.addWidget(self.system_theme_radio)
+        theme_layout.addWidget(self.light_theme_radio)
+        theme_layout.addWidget(self.dark_theme_radio)
+        
+        theme_group.setLayout(theme_layout)
+        settings_layout.addWidget(theme_group)
+        
+        # Startup Settings Section
+        startup_group = QGroupBox("Startup Settings")
+        startup_layout = QVBoxLayout()
+        
+        # Start with system checkbox
+        self.start_with_system_cb = QCheckBox("Start when computer starts")
+        self.start_with_system_cb.setChecked(self.start_with_system)
+        self.start_with_system_cb.stateChanged.connect(self.toggle_start_with_system)
+        
+        startup_layout.addWidget(self.start_with_system_cb)
+        
+        startup_group.setLayout(startup_layout)
+        settings_layout.addWidget(startup_group)
+        
+        settings_layout.addStretch()
+        self.settings_page.setLayout(settings_layout)
+        
+        # Initialize profile page
+        profile_layout = QVBoxLayout()
+        profile_layout.setContentsMargins(20, 20, 20, 20)
+        
+        # Add a refresh button at the top
+        refresh_btn = QPushButton('Refresh Profile')
+        refresh_btn.clicked.connect(self.refresh_profile)
+        profile_layout.addWidget(refresh_btn)
+        
+        # Create containers for profile info
+        self.profile_info_container = QWidget()
+        profile_info_layout = QVBoxLayout()
+        self.profile_info_container.setLayout(profile_info_layout)
+        profile_layout.addWidget(self.profile_info_container)
+        
+        # Add logout button at bottom
+        logout_btn = QPushButton('Logout')
+        logout_btn.clicked.connect(self.logout)
+        profile_layout.addWidget(logout_btn)
+        
+        profile_layout.addStretch()
+        self.profile_page.setLayout(profile_layout)
+        
+        # Add pages to content stack
         self.content_stack.addWidget(self.dashboard_page)
         self.content_stack.addWidget(self.devices_page)
         self.content_stack.addWidget(self.plugins_page)
         self.content_stack.addWidget(self.settings_page)
+        self.content_stack.addWidget(self.profile_page)
         
         main_layout.addWidget(self.content_stack)
         
@@ -352,11 +478,12 @@ class MainWindow(QMainWindow):
         self.setStatusBar(self.status_bar)
         self.status_bar.showMessage("Not connected to server")
         
-        # Connect buttons
-        self.dashboard_btn.clicked.connect(lambda: self.content_stack.setCurrentWidget(self.dashboard_page))
-        self.devices_btn.clicked.connect(lambda: self.content_stack.setCurrentWidget(self.devices_page))
-        self.plugins_btn.clicked.connect(lambda: self.content_stack.setCurrentWidget(self.plugins_page))
-        self.settings_btn.clicked.connect(lambda: self.content_stack.setCurrentWidget(self.settings_page))
+        # Connect buttons to show pages
+        self.dashboard_btn.clicked.connect(lambda: self.show_page(0))
+        self.devices_btn.clicked.connect(lambda: self.show_page(1))
+        self.plugins_btn.clicked.connect(lambda: self.show_page(2))
+        self.settings_btn.clicked.connect(lambda: self.show_page(3))
+        self.profile_btn.clicked.connect(lambda: self.show_page(4))
         
         # Set stylesheet
         self.setStyleSheet("""
@@ -405,26 +532,6 @@ class MainWindow(QMainWindow):
         
         # Initialize system tray
         self.init_tray_icon()
-        
-        # Start server status check timer
-        self.server_status_timer = QTimer()
-        self.server_status_timer.timeout.connect(self.check_server_status)
-        self.server_status_timer.start(5000)  # Check every 5 seconds
-        
-        # Create toolbar
-        toolbar = QToolBar()
-        self.addToolBar(toolbar)
-        
-        # Add spacer to push user button to the right
-        spacer = QWidget()
-        spacer.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
-        toolbar.addWidget(spacer)
-        
-        # Add user button
-        self.user_button = QPushButton(self.username or "User")
-        self.user_button.setStyleSheet("QPushButton { border: none; padding: 5px 10px; }")
-        self.user_button.clicked.connect(self.show_user_menu)
-        toolbar.addWidget(self.user_button)
         
         # Create menu bar
         menubar = self.menuBar()
@@ -508,18 +615,98 @@ class MainWindow(QMainWindow):
         
         self.plugins_page.setLayout(plugins_layout)
         
+        # Initialize settings page
+        settings_layout = QVBoxLayout()
+        settings_layout.setContentsMargins(20, 20, 20, 20)
+        settings_layout.setSpacing(20)
+        self.settings_page.setLayout(settings_layout)
+        
+        # Server Management Section
+        server_group = QGroupBox("Server Management")
+        server_layout = QVBoxLayout()
+        
+        # Server list
+        self.server_list = ServerListWidget()
+        server_layout.addWidget(self.server_list)
+        
+        # Add server section
+        add_server_layout = QHBoxLayout()
+        self.new_server_name = QLineEdit()
+        self.new_server_name.setPlaceholderText("Server Name")
+        self.new_server_url = QLineEdit()
+        self.new_server_url.setPlaceholderText("Server URL (e.g., ws://localhost:8765)")
+        add_server_btn = QPushButton("Add Server")
+        add_server_btn.clicked.connect(self.add_server)
+        
+        add_server_layout.addWidget(self.new_server_name)
+        add_server_layout.addWidget(self.new_server_url)
+        add_server_layout.addWidget(add_server_btn)
+        server_layout.addLayout(add_server_layout)
+        
+        # Remove server button
+        remove_server_btn = QPushButton("Remove Selected Server")
+        remove_server_btn.clicked.connect(self.remove_server)
+        server_layout.addWidget(remove_server_btn)
+        
+        server_group.setLayout(server_layout)
+        settings_layout.addWidget(server_group)
+        
+        # Theme Settings Section
+        theme_group = QGroupBox("Theme Settings")
+        theme_layout = QVBoxLayout()
+        
+        # Theme radio buttons
+        self.system_theme_radio = QRadioButton("Follow System Theme")
+        self.light_theme_radio = QRadioButton("Light Theme")
+        self.dark_theme_radio = QRadioButton("Dark Theme")
+        
+        # Set initial theme selection
+        if self.is_dark_mode is None:
+            self.system_theme_radio.setChecked(True)
+        elif self.is_dark_mode:
+            self.dark_theme_radio.setChecked(True)
+        else:
+            self.light_theme_radio.setChecked(True)
+        
+        # Connect theme radio buttons
+        self.system_theme_radio.toggled.connect(lambda: self.change_theme(None))
+        self.light_theme_radio.toggled.connect(lambda: self.change_theme(False))
+        self.dark_theme_radio.toggled.connect(lambda: self.change_theme(True))
+        
+        theme_layout.addWidget(self.system_theme_radio)
+        theme_layout.addWidget(self.light_theme_radio)
+        theme_layout.addWidget(self.dark_theme_radio)
+        
+        theme_group.setLayout(theme_layout)
+        settings_layout.addWidget(theme_group)
+        
+        # Startup Settings Section
+        startup_group = QGroupBox("Startup Settings")
+        startup_layout = QVBoxLayout()
+        
+        # Start with system checkbox
+        self.start_with_system_cb = QCheckBox("Start when computer starts")
+        self.start_with_system_cb.setChecked(self.start_with_system)
+        self.start_with_system_cb.stateChanged.connect(self.toggle_start_with_system)
+        
+        startup_layout.addWidget(self.start_with_system_cb)
+        
+        startup_group.setLayout(startup_layout)
+        settings_layout.addWidget(startup_group)
+        
+        settings_layout.addStretch()
+    
     def show_page(self, index):
         """Show the selected page and update button states."""
         self.content_stack.setCurrentIndex(index)
         
         # Update button states
-        for btn in [self.dashboard_btn, self.devices_btn, self.plugins_btn, 
-                   self.settings_btn, self.profile_btn]:
-            btn.setChecked(False)
+        buttons = [self.dashboard_btn, self.devices_btn, self.plugins_btn, 
+                  self.settings_btn, self.profile_btn]
         
         # Set the clicked button as checked
-        [self.dashboard_btn, self.devices_btn, self.plugins_btn,
-         self.settings_btn, self.profile_btn][index].setChecked(True)
+        for i, btn in enumerate(buttons):
+            btn.setChecked(i == index)
 
     def show_login(self):
         """Show the login window."""
@@ -558,7 +745,9 @@ class MainWindow(QMainWindow):
     def init_tray_icon(self):
         """Initialize the system tray icon."""
         self.tray_icon = QSystemTrayIcon(self)
-        self.tray_icon.setIcon(QIcon("client/src/ui/icons/tray.png"))
+        icon_path = os.path.join(self.module_dir, 'resources', 'icons', 'tray.svg')
+        if os.path.exists(icon_path):
+            self.tray_icon.setIcon(QIcon(icon_path))
         
         # Create tray menu
         tray_menu = QMenu()
@@ -566,12 +755,13 @@ class MainWindow(QMainWindow):
         quit_action = QAction("Quit", self)
         
         show_action.triggered.connect(self.show)
-        quit_action.triggered.connect(self.close)
+        quit_action.triggered.connect(self.quit_application)
         
         tray_menu.addAction(show_action)
         tray_menu.addAction(quit_action)
         
         self.tray_icon.setContextMenu(tray_menu)
+        self.tray_icon.activated.connect(self.on_tray_icon_activated)
         self.tray_icon.show()
         
     def quit_application(self):
@@ -693,8 +883,6 @@ class MainWindow(QMainWindow):
     def show_user_menu(self):
         """Show the user menu."""
         menu = QMenu(self)
-        profile_action = menu.addAction("Profile")
-        menu.addSeparator()
         logout_action = menu.addAction("Logout")
         
         # Show menu at button position
@@ -702,80 +890,25 @@ class MainWindow(QMainWindow):
         
         if action == logout_action:
             self.logout()
-        elif action == profile_action:
-            self.show_profile()
 
     def show_profile(self):
-        """Show user profile dialog."""
-        dialog = QDialog(self)
-        dialog.setWindowTitle('User Profile')
-        dialog.setMinimumWidth(400)
+        """Show user profile by switching to profile page."""
+        self.content_stack.setCurrentWidget(self.profile_page)
+        self.refresh_profile()  # Refresh profile info when showing the page
+
+    def refresh_profile(self):
+        """Refresh the profile page with latest user info."""
+        # Clear existing profile info
+        layout = self.profile_info_container.layout()
+        while layout.count():
+            child = layout.takeAt(0)
+            if child.widget():
+                child.widget().deleteLater()
         
-        layout = QVBoxLayout()
-        
-        # User info
-        user_info = self.db.get_user_info(self.user_id)
-        if user_info:
-            # Username
-            username_layout = QHBoxLayout()
-            username_label = QLabel('Username:')
-            username_value = QLabel(user_info['username'])
-            username_layout.addWidget(username_label)
-            username_layout.addWidget(username_value)
-            layout.addLayout(username_layout)
-            
-            # Email
-            email_layout = QHBoxLayout()
-            email_label = QLabel('Email:')
-            email_value = QLabel(user_info['email'])
-            email_layout.addWidget(email_label)
-            email_layout.addWidget(email_value)
-            layout.addLayout(email_layout)
-            
-            # Client ID
-            client_id_layout = QHBoxLayout()
-            client_id_label = QLabel('Client ID:')
-            client_id_value = QLineEdit(user_info['client_id'])
-            client_id_value.setReadOnly(True)
-            client_id_layout.addWidget(client_id_label)
-            client_id_layout.addWidget(client_id_value)
-            layout.addLayout(client_id_layout)
-            
-            # Client Secret
-            client_secret_layout = QHBoxLayout()
-            client_secret_label = QLabel('Client Secret:')
-            client_secret_value = QLineEdit(user_info['client_secret'])
-            client_secret_value.setReadOnly(True)
-            client_secret_value.setEchoMode(QLineEdit.EchoMode.Password)
-            client_secret_layout.addWidget(client_secret_label)
-            client_secret_layout.addWidget(client_secret_value)
-            layout.addLayout(client_secret_layout)
-            
-            # Show/Hide secret checkbox
-            show_secret = QCheckBox('Show Client Secret')
-            show_secret.stateChanged.connect(
-                lambda state: client_secret_value.setEchoMode(
-                    QLineEdit.EchoMode.Normal if state else QLineEdit.EchoMode.Password
-                )
-            )
-            layout.addWidget(show_secret)
-            
-            # Account info
-            account_info = QLabel(f"""
-                <br>
-                <b>Account Information:</b><br>
-                Created: {user_info['created_at'].strftime('%Y-%m-%d %H:%M:%S')}<br>
-                Last Login: {user_info['last_login'].strftime('%Y-%m-%d %H:%M:%S') if user_info['last_login'] else 'Never'}<br>
-            """)
-            layout.addWidget(account_info)
-        
-        # Close button
-        close_btn = QPushButton('Close')
-        close_btn.clicked.connect(dialog.accept)
-        layout.addWidget(close_btn)
-        
-        dialog.setLayout(layout)
-        dialog.exec()
+        # Add user info
+        layout.addWidget(QLabel(f"User ID: {self.user_id}"))
+        layout.addWidget(QLabel(f"Username: {self.username}"))
+        layout.addWidget(QLabel(f"Client ID: {self.client_id}"))
 
     def logout(self):
         """Handle user logout."""
@@ -795,11 +928,107 @@ class MainWindow(QMainWindow):
             self.client_secret = None
             self.show_login()
 
-    def on_server_selected(self, item: QListWidgetItem):
-        """Handle server selection from the list."""
-        if item and self.auto_radio.isChecked():
-            url = item.data(Qt.ItemDataRole.UserRole)
-            self.url_input.setText(url)
+    def on_server_selected(self, item):
+        """Handle server selection."""
+        if item:
+            self.server_url = item.text()
+            self.url_input.setText(self.server_url)
+            self.check_server_status()
+
+    def add_server(self):
+        """Add a new server to the list."""
+        name = self.new_server_name.text().strip()
+        url = self.new_server_url.text().strip()
+        
+        if not name or not url:
+            QMessageBox.warning(self, "Error", "Please enter both server name and URL")
+            return
+            
+        # Add to list
+        item = QListWidgetItem(name)
+        item.setData(Qt.ItemDataRole.UserRole, url)
+        self.server_list.addItem(item)
+        
+        # Clear inputs
+        self.new_server_name.clear()
+        self.new_server_url.clear()
+        
+        # Save to settings
+        self.save_servers()
+    
+    def remove_server(self):
+        """Remove the selected server from the list."""
+        current_item = self.server_list.currentItem()
+        if not current_item:
+            QMessageBox.warning(self, "Error", "Please select a server to remove")
+            return
+            
+        reply = QMessageBox.question(
+            self,
+            "Confirm Removal",
+            f"Are you sure you want to remove the server '{current_item.text()}'?",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+            QMessageBox.StandardButton.No
+        )
+        
+        if reply == QMessageBox.StandardButton.Yes:
+            self.server_list.takeItem(self.server_list.row(current_item))
+            self.save_servers()
+    
+    def save_servers(self):
+        """Save the current server list to settings."""
+        servers = {}
+        for i in range(self.server_list.count()):
+            item = self.server_list.item(i)
+            servers[item.text()] = item.data(Qt.ItemDataRole.UserRole)
+        self.settings.setValue('servers', servers)
+    
+    def load_servers(self):
+        """Load servers from settings."""
+        self.server_list.clear()
+        servers = self.settings.value('servers', {})
+        for name, url in servers.items():
+            item = QListWidgetItem(name)
+            item.setData(Qt.ItemDataRole.UserRole, url)
+            self.server_list.addItem(item)
+    
+    def change_theme(self, is_dark_mode):
+        """Change the application theme."""
+        if self.is_dark_mode != is_dark_mode:
+            self.is_dark_mode = is_dark_mode
+            self.settings.setValue('dark_mode', is_dark_mode)
+            self.apply_theme()
+    
+    def toggle_start_with_system(self, state):
+        """Toggle whether the application starts with the system."""
+        try:
+            if sys.platform == 'darwin':
+                app_path = os.path.abspath(sys.argv[0])
+                script = f'''
+                tell application "System Events"
+                    try
+                        delete login item "YAMS"
+                    end try
+                    {f'make login item at end with properties {{name:"YAMS", path:"{app_path}", hidden:false}}' if state else ''}
+                end tell
+                '''
+                subprocess.run(['osascript', '-e', script], check=False)
+            
+            self.start_with_system = bool(state)
+            self.settings.setValue('start_with_system', self.start_with_system)
+            self.settings.sync()
+        except Exception as e:
+            QMessageBox.warning(self, "Warning", f"Could not {'' if state else 'remove '} startup item: {str(e)}")
+    
+    def on_theme_changed(self, theme):
+        """Handle theme change from settings."""
+        if theme == 'system':
+            self.is_dark_mode = None
+        else:
+            self.is_dark_mode = theme == 'dark'
+        
+        self.settings.setValue('dark_mode', self.is_dark_mode)
+        self.apply_theme()
 
 def create_gui():
     """Create and return the GUI application and main window."""
@@ -817,5 +1046,5 @@ def create_gui():
     if os.path.exists(icon_path):
         app.setWindowIcon(QIcon(icon_path))
     
-    window = MainWindow()
+    window = MainWindow(None)
     return app, window

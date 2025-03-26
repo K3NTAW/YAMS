@@ -1,53 +1,131 @@
-from PyQt6.QtWidgets import QPushButton, QWidget, QTabWidget, QLineEdit, QTabBar
-from PyQt6.QtCore import Qt
-from PyQt6.QtGui import QIcon
+"""Theme management for YAMS."""
 
-# Color scheme
+from PyQt6.QtGui import (
+    QPalette,
+    QColor,
+    QIcon
+)
+from PyQt6.QtCore import (
+    Qt,
+    QSize
+)
+from PyQt6.QtWidgets import (
+    QPushButton,
+    QTabWidget,
+    QLineEdit,
+    QGroupBox,
+    QLabel,
+    QRadioButton,
+    QCheckBox,
+    QStatusBar
+)
+import os
+
+# Color definitions
 COLORS = {
-    'primary': '#4a90e2',
-    'primary_hover': '#357abd',
-    'primary_pressed': '#2d6da3',
-    'secondary': '#6c757d',
-    'secondary_hover': '#5a6268',
-    'secondary_pressed': '#545b62',
-    'success': '#28a745',
-    'danger': '#dc3545',
-    'warning': '#ffc107',
-    'info': '#17a2b8',
-    'light': '#f8f9fa',
-    'dark': '#343a40',
-    'white': '#ffffff',
-    'sidebar_bg': '#f5f5f5',
+    'primary': '#007AFF',
+    'primary_hover': '#0056b3',
+    'sidebar_bg': '#f8f9fa',
+    'sidebar_bg_dark': '#1e1e1e',
     'content_bg': '#ffffff',
-    'border': '#dee2e6',
-    'text': '#333333',
+    'content_bg_dark': '#2d2d2d',
+    'text': '#212529',
+    'text_dark': '#ffffff',
     'text_secondary': '#6c757d',
+    'text_secondary_dark': '#a0a0a0',
+    'border': '#dee2e6',
+    'border_dark': '#404040',
 }
 
 class ModernLineEdit(QLineEdit):
-    def __init__(self, placeholder="", parent=None):
-        super().__init__(parent)
-        self.setPlaceholderText(placeholder)
-        self.setMinimumHeight(40)
+    """Modern styled line edit."""
+    
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
         self.setStyleSheet(f"""
             QLineEdit {{
-                border: 2px solid {COLORS['border']};
-                border-radius: 8px;
-                padding: 8px 16px;
-                background-color: {COLORS['sidebar_bg']};
-                color: {COLORS['text']};
-                font-size: 14px;
-            }}
-            QLineEdit:focus {{
-                border: 2px solid {COLORS['primary']};
+                border: 1px solid {COLORS['border']};
+                border-radius: 4px;
+                padding: 8px;
                 background-color: {COLORS['content_bg']};
             }}
-            QLineEdit::placeholder {{
-                color: {COLORS['text_secondary']};
+            QLineEdit:focus {{
+                border-color: {COLORS['primary']};
+            }}
+        """)
+
+class ModernSidebarButton(QPushButton):
+    """Modern styled sidebar button."""
+    
+    def __init__(self, text, icon_name=None, parent=None):
+        super().__init__(text, parent)
+        self.setCheckable(True)
+        self.setFlat(True)
+        self.setMinimumHeight(40)
+        self.setAutoExclusive(True)
+        self.setCursor(Qt.CursorShape.PointingHandCursor)
+        
+        if icon_name:
+            # Get the directory containing this module
+            module_dir = os.path.dirname(os.path.abspath(__file__))
+            icon_path = os.path.join(module_dir, 'resources', 'icons', f'{icon_name}.svg')
+            if os.path.exists(icon_path):
+                self.setIcon(QIcon(icon_path))
+                self.setIconSize(QSize(24, 24))
+        
+        self.setStyleSheet(f"""
+            QPushButton {{
+                border: none;
+                padding: 12px 20px;
+                text-align: left;
+                font-size: 14px;
+                color: {COLORS['text']};
+                background-color: transparent;
+            }}
+            QPushButton:hover {{
+                background-color: rgba(0, 0, 0, 0.05);
+            }}
+            QPushButton:checked {{
+                background-color: {COLORS['primary']};
+                color: white;
+            }}
+        """)
+
+class ModernTabWidget(QTabWidget):
+    """Modern styled tab widget."""
+    
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setDocumentMode(True)
+        self.setTabPosition(QTabWidget.TabPosition.North)
+        self.setStyleSheet(f"""
+            QTabWidget::pane {{
+                border: 1px solid {COLORS['border']};
+                border-radius: 4px;
+                padding: 20px;
+                background-color: {COLORS['content_bg']};
+            }}
+            QTabBar::tab {{
+                padding: 8px 16px;
+                margin-right: 4px;
+                border: 1px solid {COLORS['border']};
+                border-bottom: none;
+                border-top-left-radius: 4px;
+                border-top-right-radius: 4px;
+                background-color: {COLORS['sidebar_bg']};
+            }}
+            QTabBar::tab:selected {{
+                background-color: {COLORS['content_bg']};
+                border-bottom: 2px solid {COLORS['primary']};
+            }}
+            QTabBar::tab:hover {{
+                background-color: {COLORS['content_bg']};
             }}
         """)
 
 class ModernButton(QPushButton):
+    """Modern styled button."""
+    
     def __init__(self, text, primary=True, parent=None):
         super().__init__(text, parent)
         self.setMinimumHeight(40)
@@ -68,7 +146,7 @@ class ModernButton(QPushButton):
                     background-color: {COLORS['primary_hover']};
                 }}
                 QPushButton:pressed {{
-                    background-color: {COLORS['primary_pressed']};
+                    background-color: {COLORS['primary_hover']};
                 }}
             """)
         else:
@@ -89,60 +167,181 @@ class ModernButton(QPushButton):
                 }}
             """)
 
-class ModernSidebarButton(QPushButton):
-    def __init__(self, text, icon_name=None):
-        super().__init__(text)
-        self.setCheckable(True)
-        self.setAutoExclusive(True)
-        self.setCursor(Qt.CursorShape.PointingHandCursor)
+class ThemeManager:
+    """Manages application theming."""
+    
+    @staticmethod
+    def get_system_theme():
+        """Get the system theme (dark or light)."""
+        # On macOS, we can check system appearance
+        try:
+            import Foundation
+            appearance = Foundation.NSApp.effectiveAppearance()
+            return appearance.name().containsString_('Dark')
+        except:
+            return False  # Default to light theme if we can't detect
+    
+    @staticmethod
+    def apply_theme(window, is_dark_mode=None):
+        """Apply theme to the window and all its widgets."""
+        # If theme is set to follow system, get system theme
+        if is_dark_mode is None:
+            is_dark_mode = ThemeManager.get_system_theme()
         
-        if icon_name:
-            # Create QIcon from the icon name
-            icon = QIcon(f"client/src/ui/icons/{icon_name}.png")
-            self.setIcon(icon)
+        # Create palette
+        palette = QPalette()
         
-        self.setStyleSheet(f"""
-            QPushButton {{
-                border: none;
-                padding: 12px 20px;
-                text-align: left;
-                font-size: 14px;
-                color: {COLORS['text']};
-                background-color: transparent;
-            }}
-            QPushButton:hover {{
-                background-color: rgba(0, 0, 0, 0.05);
-            }}
-            QPushButton:checked {{
-                background-color: {COLORS['primary']};
-                color: {COLORS['white']};
-            }}
-        """)
-
-class ModernTabWidget(QTabWidget):
-    def __init__(self):
-        super().__init__()
-        self.setStyleSheet(f"""
-            QTabWidget::pane {{
-                border: 1px solid {COLORS['border']};
-                border-radius: 4px;
-                padding: 20px;
-                background-color: {COLORS['white']};
-            }}
-            QTabBar::tab {{
-                padding: 8px 16px;
-                margin-right: 4px;
-                border: 1px solid {COLORS['border']};
-                border-bottom: none;
-                border-top-left-radius: 4px;
-                border-top-right-radius: 4px;
-                background-color: {COLORS['light']};
-            }}
-            QTabBar::tab:selected {{
-                background-color: {COLORS['white']};
-                border-bottom: 2px solid {COLORS['primary']};
-            }}
-            QTabBar::tab:hover {{
-                background-color: {COLORS['white']};
-            }}
-        """)
+        if is_dark_mode:
+            # Dark theme colors
+            palette.setColor(QPalette.ColorRole.Window, QColor(COLORS['sidebar_bg_dark']))
+            palette.setColor(QPalette.ColorRole.WindowText, QColor(COLORS['text_dark']))
+            palette.setColor(QPalette.ColorRole.Base, QColor(COLORS['content_bg_dark']))
+            palette.setColor(QPalette.ColorRole.AlternateBase, QColor(COLORS['sidebar_bg_dark']))
+            palette.setColor(QPalette.ColorRole.ToolTipBase, QColor(COLORS['content_bg_dark']))
+            palette.setColor(QPalette.ColorRole.ToolTipText, QColor(COLORS['text_dark']))
+            palette.setColor(QPalette.ColorRole.Text, QColor(COLORS['text_dark']))
+            palette.setColor(QPalette.ColorRole.Button, QColor(COLORS['sidebar_bg_dark']))
+            palette.setColor(QPalette.ColorRole.ButtonText, QColor(COLORS['text_dark']))
+            palette.setColor(QPalette.ColorRole.Link, QColor(COLORS['primary']))
+            palette.setColor(QPalette.ColorRole.Highlight, QColor(COLORS['primary']))
+            palette.setColor(QPalette.ColorRole.HighlightedText, QColor(COLORS['text_dark']))
+            
+            # Update stylesheet
+            window.setStyleSheet("""
+                QMainWindow {
+                    background-color: """ + COLORS['content_bg_dark'] + """;
+                }
+                #sidebar {
+                    background-color: """ + COLORS['sidebar_bg_dark'] + """;
+                    border-right: 1px solid """ + COLORS['border_dark'] + """;
+                }
+                #titleWidget {
+                    border-bottom: 1px solid """ + COLORS['border_dark'] + """;
+                }
+                #titleLabel {
+                    color: """ + COLORS['text_dark'] + """;
+                }
+                #subtitleLabel {
+                    color: """ + COLORS['text_secondary_dark'] + """;
+                }
+                QPushButton {
+                    background-color: """ + COLORS['primary'] + """;
+                    color: """ + COLORS['text_dark'] + """;
+                    border: none;
+                    border-radius: 4px;
+                    padding: 8px 16px;
+                }
+                QPushButton:hover {
+                    background-color: """ + COLORS['primary_hover'] + """;
+                }
+                QPushButton:disabled {
+                    background-color: """ + COLORS['text_secondary_dark'] + """;
+                }
+                QLineEdit {
+                    background-color: """ + COLORS['sidebar_bg_dark'] + """;
+                    color: """ + COLORS['text_dark'] + """;
+                    border: 1px solid """ + COLORS['border_dark'] + """;
+                    border-radius: 4px;
+                    padding: 8px;
+                }
+                QGroupBox {
+                    border: 1px solid """ + COLORS['border_dark'] + """;
+                    border-radius: 4px;
+                    margin-top: 1em;
+                    padding-top: 1em;
+                    color: """ + COLORS['text_dark'] + """;
+                }
+                QGroupBox::title {
+                    subcontrol-origin: margin;
+                    left: 10px;
+                    padding: 0 3px;
+                }
+                QLabel {
+                    color: """ + COLORS['text_dark'] + """;
+                }
+                QRadioButton, QCheckBox {
+                    color: """ + COLORS['text_dark'] + """;
+                }
+                QStatusBar {
+                    background-color: """ + COLORS['sidebar_bg_dark'] + """;
+                    color: """ + COLORS['text_dark'] + """;
+                }
+            """)
+        else:
+            # Light theme colors
+            palette.setColor(QPalette.ColorRole.Window, QColor(COLORS['sidebar_bg']))
+            palette.setColor(QPalette.ColorRole.WindowText, QColor(COLORS['text']))
+            palette.setColor(QPalette.ColorRole.Base, QColor(COLORS['content_bg']))
+            palette.setColor(QPalette.ColorRole.AlternateBase, QColor(COLORS['sidebar_bg']))
+            palette.setColor(QPalette.ColorRole.ToolTipBase, QColor(COLORS['content_bg']))
+            palette.setColor(QPalette.ColorRole.ToolTipText, QColor(COLORS['text']))
+            palette.setColor(QPalette.ColorRole.Text, QColor(COLORS['text']))
+            palette.setColor(QPalette.ColorRole.Button, QColor(COLORS['sidebar_bg']))
+            palette.setColor(QPalette.ColorRole.ButtonText, QColor(COLORS['text']))
+            palette.setColor(QPalette.ColorRole.Link, QColor(COLORS['primary']))
+            palette.setColor(QPalette.ColorRole.Highlight, QColor(COLORS['primary']))
+            palette.setColor(QPalette.ColorRole.HighlightedText, QColor('#ffffff'))
+            
+            # Update stylesheet
+            window.setStyleSheet("""
+                QMainWindow {
+                    background-color: """ + COLORS['content_bg'] + """;
+                }
+                #sidebar {
+                    background-color: """ + COLORS['sidebar_bg'] + """;
+                    border-right: 1px solid """ + COLORS['border'] + """;
+                }
+                #titleWidget {
+                    border-bottom: 1px solid """ + COLORS['border'] + """;
+                }
+                #titleLabel {
+                    color: """ + COLORS['text'] + """;
+                }
+                #subtitleLabel {
+                    color: """ + COLORS['text_secondary'] + """;
+                }
+                QPushButton {
+                    background-color: """ + COLORS['primary'] + """;
+                    color: white;
+                    border: none;
+                    border-radius: 4px;
+                    padding: 8px 16px;
+                }
+                QPushButton:hover {
+                    background-color: """ + COLORS['primary_hover'] + """;
+                }
+                QPushButton:disabled {
+                    background-color: """ + COLORS['text_secondary'] + """;
+                }
+                QLineEdit {
+                    background-color: """ + COLORS['content_bg'] + """;
+                    color: """ + COLORS['text'] + """;
+                    border: 1px solid """ + COLORS['border'] + """;
+                    border-radius: 4px;
+                    padding: 8px;
+                }
+                QGroupBox {
+                    border: 1px solid """ + COLORS['border'] + """;
+                    border-radius: 4px;
+                    margin-top: 1em;
+                    padding-top: 1em;
+                    color: """ + COLORS['text'] + """;
+                }
+                QGroupBox::title {
+                    subcontrol-origin: margin;
+                    left: 10px;
+                    padding: 0 3px;
+                }
+                QLabel {
+                    color: """ + COLORS['text'] + """;
+                }
+                QRadioButton, QCheckBox {
+                    color: """ + COLORS['text'] + """;
+                }
+                QStatusBar {
+                    background-color: """ + COLORS['sidebar_bg'] + """;
+                    color: """ + COLORS['text'] + """;
+                }
+            """)
+        
+        window.setPalette(palette)
