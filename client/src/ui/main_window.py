@@ -307,11 +307,11 @@ class MainWindow(QMainWindow):
         nav_layout.setContentsMargins(0, 0, 0, 0)
         nav_layout.setSpacing(0)
         
-        self.dashboard_btn = ModernSidebarButton("Dashboard", "dashboard")
-        self.devices_btn = ModernSidebarButton("Devices", "devices")
-        self.plugins_btn = ModernSidebarButton("Plugins", "plugins")
-        self.settings_btn = ModernSidebarButton("Settings", "settings")
-        self.profile_btn = ModernSidebarButton("Profile", "profile")
+        self.dashboard_btn = ModernSidebarButton("Dashboard", "dashboard", self.is_dark_mode)
+        self.devices_btn = ModernSidebarButton("Devices", "devices", self.is_dark_mode)
+        self.plugins_btn = ModernSidebarButton("Plugins", "plugins", self.is_dark_mode)
+        self.settings_btn = ModernSidebarButton("Settings", "settings", self.is_dark_mode)
+        self.profile_btn = ModernSidebarButton("Profile", "profile", self.is_dark_mode)
         
         nav_layout.addWidget(self.dashboard_btn)
         nav_layout.addWidget(self.devices_btn)
@@ -487,46 +487,97 @@ class MainWindow(QMainWindow):
         
         # Set stylesheet
         self.setStyleSheet("""
-            #sidebar {
-                background-color: """ + COLORS['sidebar_bg'] + """;
-                border-right: 1px solid """ + COLORS['border'] + """;
+            QMainWindow {
+                background-color: """ + ('#2E2E2E' if self.is_dark_mode else '#FFFFFF') + """;
+                color: """ + ('#FFFFFF' if self.is_dark_mode else '#000000') + """;
             }
-            #titleWidget {
-                border-bottom: 1px solid """ + COLORS['border'] + """;
+            QWidget {
+                background-color: """ + ('#2E2E2E' if self.is_dark_mode else '#FFFFFF') + """;
+                color: """ + ('#FFFFFF' if self.is_dark_mode else '#000000') + """;
             }
-            #titleLabel {
-                font-size: 24px;
-                font-weight: bold;
-                color: """ + COLORS['text'] + """;
+            QMenuBar {
+                background-color: """ + ('#1E1E1E' if self.is_dark_mode else '#F0F0F0') + """;
+                color: """ + ('#FFFFFF' if self.is_dark_mode else '#000000') + """;
             }
-            #subtitleLabel {
-                font-size: 12px;
-                color: """ + COLORS['text_secondary'] + """;
+            QMenuBar::item:selected {
+                background-color: """ + ('#404040' if self.is_dark_mode else '#E0E0E0') + """;
             }
-            #contentStack {
-                background-color: """ + COLORS['content_bg'] + """;
+            QMenu {
+                background-color: """ + ('#2E2E2E' if self.is_dark_mode else '#FFFFFF') + """;
+                color: """ + ('#FFFFFF' if self.is_dark_mode else '#000000') + """;
             }
-            QLineEdit {
-                padding: 8px;
-                border: 1px solid """ + COLORS['border'] + """;
-                border-radius: 4px;
-                min-width: 300px;
+            QMenu::item:selected {
+                background-color: """ + ('#404040' if self.is_dark_mode else '#E0E0E0') + """;
             }
             QPushButton {
-                padding: 8px 16px;
-                background-color: """ + COLORS['primary'] + """;
-                color: white;
+                background-color: """ + ('#404040' if self.is_dark_mode else '#F0F0F0') + """;
+                color: """ + ('#FFFFFF' if self.is_dark_mode else '#000000') + """;
                 border: none;
-                border-radius: 4px;
+                padding: 5px;
+                border-radius: 3px;
             }
             QPushButton:hover {
-                background-color: """ + COLORS['primary_hover'] + """;
+                background-color: """ + ('#505050' if self.is_dark_mode else '#E0E0E0') + """;
+            }
+            QPushButton:pressed {
+                background-color: """ + ('#303030' if self.is_dark_mode else '#D0D0D0') + """;
+            }
+            QLineEdit {
+                background-color: """ + ('#404040' if self.is_dark_mode else '#FFFFFF') + """;
+                color: """ + ('#FFFFFF' if self.is_dark_mode else '#000000') + """;
+                border: 1px solid """ + ('#505050' if self.is_dark_mode else '#C0C0C0') + """;
+                padding: 5px;
+                border-radius: 3px;
+            }
+            QListWidget {
+                background-color: """ + ('#404040' if self.is_dark_mode else '#FFFFFF') + """;
+                color: """ + ('#FFFFFF' if self.is_dark_mode else '#000000') + """;
+                border: 1px solid """ + ('#505050' if self.is_dark_mode else '#C0C0C0') + """;
+                border-radius: 3px;
+            }
+            QListWidget::item:selected {
+                background-color: """ + ('#505050' if self.is_dark_mode else '#E0E0E0') + """;
+            }
+            QTreeWidget {
+                background-color: """ + ('#404040' if self.is_dark_mode else '#FFFFFF') + """;
+                color: """ + ('#FFFFFF' if self.is_dark_mode else '#000000') + """;
+                border: 1px solid """ + ('#505050' if self.is_dark_mode else '#C0C0C0') + """;
+                border-radius: 3px;
+            }
+            QTreeWidget::item:selected {
+                background-color: """ + ('#505050' if self.is_dark_mode else '#E0E0E0') + """;
             }
             QStatusBar {
-                background-color: """ + COLORS['sidebar_bg'] + """;
-                color: """ + COLORS['text'] + """;
-                padding: 4px;
-                border-top: 1px solid """ + COLORS['border'] + """;
+                background-color: """ + ('#1E1E1E' if self.is_dark_mode else '#F0F0F0') + """;
+                color: """ + ('#FFFFFF' if self.is_dark_mode else '#000000') + """;
+            }
+            QLabel {
+                color: """ + ('#FFFFFF' if self.is_dark_mode else '#000000') + """;
+            }
+            QGroupBox {
+                border: 1px solid """ + ('#505050' if self.is_dark_mode else '#C0C0C0') + """;
+                border-radius: 3px;
+                margin-top: 0.5em;
+                padding-top: 0.5em;
+            }
+            QGroupBox::title {
+                color: """ + ('#FFFFFF' if self.is_dark_mode else '#000000') + """;
+                subcontrol-origin: margin;
+                left: 10px;
+                padding: 0 3px 0 3px;
+            }
+            QRadioButton {
+                color: """ + ('#FFFFFF' if self.is_dark_mode else '#000000') + """;
+            }
+            QCheckBox {
+                color: """ + ('#FFFFFF' if self.is_dark_mode else '#000000') + """;
+            }
+            #sidebar {
+                background-color: """ + ('#1E1E1E' if self.is_dark_mode else '#F0F0F0') + """;
+                border-right: 1px solid """ + ('#505050' if self.is_dark_mode else '#C0C0C0') + """;
+            }
+            #contentStack {
+                background-color: """ + ('#2E2E2E' if self.is_dark_mode else '#FFFFFF') + """;
             }
         """)
         
@@ -879,6 +930,13 @@ class MainWindow(QMainWindow):
                 else QStyle.StandardPixmap.SP_DialogHelpButton
             )
         )
+        
+        # Update sidebar buttons
+        self.dashboard_btn.update_theme(self.is_dark_mode)
+        self.devices_btn.update_theme(self.is_dark_mode)
+        self.plugins_btn.update_theme(self.is_dark_mode)
+        self.settings_btn.update_theme(self.is_dark_mode)
+        self.profile_btn.update_theme(self.is_dark_mode)
 
     def show_user_menu(self):
         """Show the user menu."""

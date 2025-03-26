@@ -1,20 +1,31 @@
 """Theme management for YAMS."""
 
+from PyQt6.QtCore import Qt
 from PyQt6.QtGui import (
     QPalette,
     QColor,
-    QIcon
+    QIcon,
+    QPainter,
+    QPixmap,
+    QBrush,
+    QFont,
+    QPen
 )
 from PyQt6.QtCore import (
-    Qt,
-    QSize
+    QSize,
+    QRect,
+    QPoint
 )
 from PyQt6.QtWidgets import (
     QPushButton,
     QTabWidget,
+    QWidget,
+    QVBoxLayout,
+    QLabel,
+    QSpacerItem,
+    QSizePolicy,
     QLineEdit,
     QGroupBox,
-    QLabel,
     QRadioButton,
     QCheckBox,
     QStatusBar
@@ -57,38 +68,57 @@ class ModernLineEdit(QLineEdit):
 class ModernSidebarButton(QPushButton):
     """Modern styled sidebar button."""
     
-    def __init__(self, text, icon_name=None, parent=None):
-        super().__init__(text, parent)
+    def __init__(self, text, icon_name=None, is_dark_mode=False):
+        """Initialize the button."""
+        super().__init__(text)
         self.setCheckable(True)
-        self.setFlat(True)
         self.setMinimumHeight(40)
         self.setAutoExclusive(True)
         self.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.icon_name = icon_name
+        self.icon_path = os.path.join(os.path.dirname(__file__), "resources", "icons", f"{icon_name}.svg") if icon_name else None
         
-        if icon_name:
-            # Get the directory containing this module
-            module_dir = os.path.dirname(os.path.abspath(__file__))
-            icon_path = os.path.join(module_dir, 'resources', 'icons', f'{icon_name}.svg')
-            if os.path.exists(icon_path):
-                self.setIcon(QIcon(icon_path))
-                self.setIconSize(QSize(24, 24))
+        if self.icon_path and os.path.exists(self.icon_path):
+            self.setIconSize(QSize(24, 24))
         
-        self.setStyleSheet(f"""
-            QPushButton {{
-                border: none;
-                padding: 12px 20px;
+        self.update_theme(is_dark_mode)
+    
+    def update_theme(self, is_dark_mode):
+        """Update button theme."""
+        # Update icon color
+        if self.icon_path and os.path.exists(self.icon_path):
+            icon = QIcon(self.icon_path)
+            pixmap = icon.pixmap(24, 24)
+            
+            # Create mask from the original pixmap
+            mask = pixmap.createMaskFromColor(QColor('#000000'), Qt.MaskMode.MaskOutColor)
+            
+            # Create a new pixmap and fill it with the desired color
+            colored_pixmap = QPixmap(pixmap.size())
+            colored_pixmap.fill(QColor('#FFFFFF' if is_dark_mode else '#000000'))
+            colored_pixmap.setMask(mask)
+            
+            # Set the colored icon
+            self.setIcon(QIcon(colored_pixmap))
+        
+        # Update stylesheet
+        self.setStyleSheet("""
+            QPushButton {
                 text-align: left;
+                padding: 8px 16px;
+                border: none;
+                border-radius: 0;
                 font-size: 14px;
-                color: {COLORS['text']};
                 background-color: transparent;
-            }}
-            QPushButton:hover {{
-                background-color: rgba(0, 0, 0, 0.05);
-            }}
-            QPushButton:checked {{
-                background-color: {COLORS['primary']};
-                color: white;
-            }}
+                color: """ + ('#FFFFFF' if is_dark_mode else '#000000') + """;
+            }
+            QPushButton:hover {
+                background-color: rgba(255, 255, 255, 0.1);
+            }
+            QPushButton:checked {
+                background-color: rgba(255, 255, 255, 0.2);
+                color: """ + ('#FFFFFF' if is_dark_mode else '#000000') + """;
+            }
         """)
 
 class ModernTabWidget(QTabWidget):
