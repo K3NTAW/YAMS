@@ -5,7 +5,7 @@ from PyQt6.QtWidgets import (QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
                              QListWidgetItem, QTreeWidget, QTreeWidgetItem,
                              QTabWidget, QGroupBox, QRadioButton, QLineEdit,
                              QToolBar, QStyle, QCheckBox, QStatusBar, QApplication,
-                             QSizePolicy)
+                             QSizePolicy, QComboBox, QButtonGroup)
 from PyQt6.QtCore import Qt, QTimer, pyqtSignal, QSettings, QMimeData
 from PyQt6.QtGui import QIcon, QAction, QDragEnterEvent, QDropEvent
 from .auth_window import LoginWindow
@@ -331,8 +331,8 @@ class MainWindow(QMainWindow):
         self.dashboard_page = QWidget()
         self.devices_page = QWidget()
         self.plugins_page = QWidget()
-        self.settings_page = QWidget()
-        self.profile_page = QWidget()
+        self.settings_page = self.init_settings_page()
+        self.profile_page = self.init_profile_page()
         
         # Initialize dashboard page
         dashboard_layout = QVBoxLayout()
@@ -389,80 +389,6 @@ class MainWindow(QMainWindow):
         plugins_layout.addStretch()
         
         self.plugins_page.setLayout(plugins_layout)
-        
-        # Initialize settings page
-        settings_layout = QVBoxLayout()
-        settings_layout.setContentsMargins(20, 20, 20, 20)
-        settings_layout.setSpacing(20)
-        
-        # Theme Settings Section
-        theme_group = QGroupBox("Theme Settings")
-        theme_layout = QVBoxLayout()
-        
-        # Theme radio buttons
-        self.system_theme_radio = QRadioButton("Follow System Theme")
-        self.light_theme_radio = QRadioButton("Light Theme")
-        self.dark_theme_radio = QRadioButton("Dark Theme")
-        
-        # Set initial theme selection
-        if self.is_dark_mode is None:
-            self.system_theme_radio.setChecked(True)
-        elif self.is_dark_mode:
-            self.dark_theme_radio.setChecked(True)
-        else:
-            self.light_theme_radio.setChecked(True)
-        
-        # Connect theme radio buttons
-        self.system_theme_radio.toggled.connect(lambda: self.change_theme(None))
-        self.light_theme_radio.toggled.connect(lambda: self.change_theme(False))
-        self.dark_theme_radio.toggled.connect(lambda: self.change_theme(True))
-        
-        theme_layout.addWidget(self.system_theme_radio)
-        theme_layout.addWidget(self.light_theme_radio)
-        theme_layout.addWidget(self.dark_theme_radio)
-        
-        theme_group.setLayout(theme_layout)
-        settings_layout.addWidget(theme_group)
-        
-        # Startup Settings Section
-        startup_group = QGroupBox("Startup Settings")
-        startup_layout = QVBoxLayout()
-        
-        # Start with system checkbox
-        self.start_with_system_cb = QCheckBox("Start when computer starts")
-        self.start_with_system_cb.setChecked(self.start_with_system)
-        self.start_with_system_cb.stateChanged.connect(self.toggle_start_with_system)
-        
-        startup_layout.addWidget(self.start_with_system_cb)
-        
-        startup_group.setLayout(startup_layout)
-        settings_layout.addWidget(startup_group)
-        
-        settings_layout.addStretch()
-        self.settings_page.setLayout(settings_layout)
-        
-        # Initialize profile page
-        profile_layout = QVBoxLayout()
-        profile_layout.setContentsMargins(20, 20, 20, 20)
-        
-        # Add a refresh button at the top
-        refresh_btn = QPushButton('Refresh Profile')
-        refresh_btn.clicked.connect(self.refresh_profile)
-        profile_layout.addWidget(refresh_btn)
-        
-        # Create containers for profile info
-        self.profile_info_container = QWidget()
-        profile_info_layout = QVBoxLayout()
-        self.profile_info_container.setLayout(profile_info_layout)
-        profile_layout.addWidget(self.profile_info_container)
-        
-        # Add logout button at bottom
-        logout_btn = QPushButton('Logout')
-        logout_btn.clicked.connect(self.logout)
-        profile_layout.addWidget(logout_btn)
-        
-        profile_layout.addStretch()
-        self.profile_page.setLayout(profile_layout)
         
         # Add pages to content stack
         self.content_stack.addWidget(self.dashboard_page)
@@ -612,105 +538,71 @@ class MainWindow(QMainWindow):
         self.user_menu = menubar.addMenu('User')
         self.user_menu.aboutToShow.connect(self.show_user_menu)
         
-        # Servers tab
-        servers_tab = QWidget()
-        servers_layout = QVBoxLayout(servers_tab)
-        
-        # Server connection group
-        connection_group = QGroupBox("Server Connection")
-        connection_layout = QVBoxLayout()
-        
-        # Mode selection
-        mode_layout = QHBoxLayout()
-        self.auto_radio = QRadioButton("Auto")
-        self.manual_radio = QRadioButton("Manual")
-        self.auto_radio.setChecked(True)
-        mode_layout.addWidget(self.auto_radio)
-        mode_layout.addWidget(self.manual_radio)
-        connection_layout.addLayout(mode_layout)
-        
-        # Server URL input
-        url_layout = QHBoxLayout()
-        url_label = QLabel("Server URL:")
-        self.url_input = QLineEdit()
-        self.url_input.setReadOnly(True)
-        url_layout.addWidget(url_label)
-        url_layout.addWidget(self.url_input)
-        connection_layout.addLayout(url_layout)
-        
-        connection_group.setLayout(connection_layout)
-        servers_layout.addWidget(connection_group)
-        
-        # Server list
-        self.server_list = ServerListWidget()
-        self.server_list.itemClicked.connect(self.on_server_selected)
-        servers_layout.addWidget(self.server_list)
-        
-        self.dashboard_page.setLayout(servers_layout)
-        
-        # Plugins tab
-        plugins_tab = QWidget()
-        plugins_layout = QVBoxLayout(plugins_tab)
-        
-        # Plugin list
-        self.plugin_tree = QTreeWidget()
-        self.plugin_tree.setHeaderLabels(["Name", "Version", "Status"])
-        plugins_layout.addWidget(self.plugin_tree)
-        
-        # Plugin buttons
-        plugin_buttons = QHBoxLayout()
-        manage_plugins_btn = QPushButton("Manage Plugins")
-        manage_plugins_btn.clicked.connect(self.show_plugin_manager)
-        plugin_buttons.addWidget(manage_plugins_btn)
-        plugins_layout.addLayout(plugin_buttons)
-        
-        self.plugins_page.setLayout(plugins_layout)
-        
-        # Initialize settings page
+    def init_settings_page(self):
+        """Initialize the settings page."""
+        settings_page = QWidget()
         settings_layout = QVBoxLayout()
         settings_layout.setContentsMargins(20, 20, 20, 20)
-        settings_layout.setSpacing(20)
-        self.settings_page.setLayout(settings_layout)
-        
-        # Server Management Section
-        server_group = QGroupBox("Server Management")
+        settings_layout.setSpacing(15)
+
+        # Settings header
+        settings_title = QLabel("Settings")
+        settings_title.setStyleSheet("font-size: 24px; font-weight: bold;")
+        settings_layout.addWidget(settings_title)
+
+        # Server Settings Group
+        server_group = QGroupBox("Server Settings")
         server_layout = QVBoxLayout()
-        
-        # Server list
-        self.server_list = ServerListWidget()
-        server_layout.addWidget(self.server_list)
-        
-        # Add server section
-        add_server_layout = QHBoxLayout()
-        self.new_server_name = QLineEdit()
-        self.new_server_name.setPlaceholderText("Server Name")
-        self.new_server_url = QLineEdit()
-        self.new_server_url.setPlaceholderText("Server URL (e.g., ws://localhost:8765)")
-        add_server_btn = QPushButton("Add Server")
-        add_server_btn.clicked.connect(self.add_server)
-        
-        add_server_layout.addWidget(self.new_server_name)
-        add_server_layout.addWidget(self.new_server_url)
-        add_server_layout.addWidget(add_server_btn)
-        server_layout.addLayout(add_server_layout)
-        
-        # Remove server button
-        remove_server_btn = QPushButton("Remove Selected Server")
-        remove_server_btn.clicked.connect(self.remove_server)
-        server_layout.addWidget(remove_server_btn)
-        
         server_group.setLayout(server_layout)
+
+        # Server Selection
+        server_selection_layout = QHBoxLayout()
+        server_label = QLabel("Server:")
+        self.server_combo = QComboBox()
+        self.server_combo.addItems(["Production", "Development", "Custom"])
+        server_selection_layout.addWidget(server_label)
+        server_selection_layout.addWidget(self.server_combo)
+        server_selection_layout.addStretch()
+        server_layout.addLayout(server_selection_layout)
+
+        # URL Mode Selection
+        url_mode_layout = QHBoxLayout()
+        url_mode_label = QLabel("URL Mode:")
+        self.url_mode_group = QButtonGroup()
+        auto_radio = QRadioButton("Automatic")
+        manual_radio = QRadioButton("Manual")
+        self.url_mode_group.addButton(auto_radio, 0)
+        self.url_mode_group.addButton(manual_radio, 1)
+        auto_radio.setChecked(True)
+        url_mode_layout.addWidget(url_mode_label)
+        url_mode_layout.addWidget(auto_radio)
+        url_mode_layout.addWidget(manual_radio)
+        url_mode_layout.addStretch()
+        server_layout.addLayout(url_mode_layout)
+
+        # Manual URL Input
+        url_input_layout = QHBoxLayout()
+        url_label = QLabel("URL:")
+        self.url_input = QLineEdit()
+        self.url_input.setPlaceholderText("Enter server URL...")
+        self.url_input.setEnabled(False)  # Disabled by default in automatic mode
+        url_input_layout.addWidget(url_label)
+        url_input_layout.addWidget(self.url_input)
+        server_layout.addLayout(url_input_layout)
+
+        # Add server group to settings
         settings_layout.addWidget(server_group)
-        
-        # Theme Settings Section
+
+        # Theme Settings Group
         theme_group = QGroupBox("Theme Settings")
         theme_layout = QVBoxLayout()
-        
+        theme_group.setLayout(theme_layout)
+
         # Theme radio buttons
         self.system_theme_radio = QRadioButton("Follow System Theme")
         self.light_theme_radio = QRadioButton("Light Theme")
         self.dark_theme_radio = QRadioButton("Dark Theme")
-        
+
         # Set initial theme selection
         if self.is_dark_mode is None:
             self.system_theme_radio.setChecked(True)
@@ -718,35 +610,156 @@ class MainWindow(QMainWindow):
             self.dark_theme_radio.setChecked(True)
         else:
             self.light_theme_radio.setChecked(True)
-        
+
         # Connect theme radio buttons
         self.system_theme_radio.toggled.connect(lambda: self.change_theme(None))
         self.light_theme_radio.toggled.connect(lambda: self.change_theme(False))
         self.dark_theme_radio.toggled.connect(lambda: self.change_theme(True))
-        
+
         theme_layout.addWidget(self.system_theme_radio)
         theme_layout.addWidget(self.light_theme_radio)
         theme_layout.addWidget(self.dark_theme_radio)
-        
-        theme_group.setLayout(theme_layout)
+
         settings_layout.addWidget(theme_group)
-        
-        # Startup Settings Section
+
+        # Startup Settings Group
         startup_group = QGroupBox("Startup Settings")
         startup_layout = QVBoxLayout()
-        
+        startup_group.setLayout(startup_layout)
+
         # Start with system checkbox
         self.start_with_system_cb = QCheckBox("Start when computer starts")
         self.start_with_system_cb.setChecked(self.start_with_system)
         self.start_with_system_cb.stateChanged.connect(self.toggle_start_with_system)
-        
+
         startup_layout.addWidget(self.start_with_system_cb)
-        
-        startup_group.setLayout(startup_layout)
+
         settings_layout.addWidget(startup_group)
-        
         settings_layout.addStretch()
-    
+
+        # Save Button
+        save_btn = QPushButton("Save Settings")
+        save_btn.setStyleSheet("""
+            QPushButton {
+                background-color: #4CAF50;
+                color: white;
+                padding: 8px 16px;
+                font-weight: bold;
+                border-radius: 4px;
+            }
+            QPushButton:hover {
+                background-color: #45a049;
+            }
+        """)
+        settings_layout.addWidget(save_btn)
+
+        # Connect signals
+        self.url_mode_group.buttonClicked.connect(self.on_url_mode_changed)
+        self.server_combo.currentTextChanged.connect(self.on_server_changed)
+        save_btn.clicked.connect(self.save_settings)
+
+        settings_page.setLayout(settings_layout)
+        return settings_page
+
+    def on_url_mode_changed(self, button):
+        """Handle URL mode change."""
+        is_manual = self.url_mode_group.checkedId() == 1
+        self.url_input.setEnabled(is_manual)
+        if not is_manual:
+            self.update_automatic_url()
+
+    def on_server_changed(self, server):
+        """Handle server selection change."""
+        if self.url_mode_group.checkedId() == 0:  # Automatic mode
+            self.update_automatic_url()
+
+    def update_automatic_url(self):
+        """Update URL based on selected server in automatic mode."""
+        server = self.server_combo.currentText()
+        if server == "Production":
+            url = "https://api.yams.example.com"
+        elif server == "Development":
+            url = "http://localhost:8000"
+        else:  # Custom
+            url = ""
+        self.url_input.setText(url)
+
+    def save_settings(self):
+        """Save the current settings."""
+        settings = {
+            'server': self.server_combo.currentText(),
+            'url_mode': 'manual' if self.url_mode_group.checkedId() == 1 else 'automatic',
+            'url': self.url_input.text(),
+            'theme': 'system' if self.system_theme_radio.isChecked() else 
+                    'dark' if self.dark_theme_radio.isChecked() else 'light',
+            'start_with_system': self.start_with_system_cb.isChecked()
+        }
+        
+        # Save settings to database or config file
+        print("Saving settings:", settings)  # For now just print
+        QMessageBox.information(self, "Settings Saved", "Your settings have been saved successfully!")
+
+    def init_profile_page(self):
+        """Initialize the profile page."""
+        print("Initializing profile page...")  # Debug print
+        
+        profile_page = QWidget()
+        profile_layout = QVBoxLayout()
+        profile_layout.setContentsMargins(20, 20, 20, 20)
+        profile_layout.setSpacing(15)
+        
+        # Profile header
+        profile_title = QLabel("Your Profile")
+        profile_title.setStyleSheet("font-size: 24px; font-weight: bold;")
+        profile_layout.addWidget(profile_title)
+        
+        # Create fields
+        fields = [
+            ("Username", "username"),
+            ("User ID", "user_id"),
+            ("Client ID", "client_id"),
+            ("Client Secret", "client_secret")
+        ]
+        
+        print("Creating profile fields...")  # Debug print
+        self.info_labels = {}
+        for label_text, field_name in fields:
+            group = QGroupBox(label_text)
+            group_layout = QHBoxLayout()
+            group.setLayout(group_layout)
+            
+            label = QLabel()
+            label.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
+            label.setWordWrap(True)
+            group_layout.addWidget(label)
+            
+            profile_layout.addWidget(group)
+            self.info_labels[field_name] = label
+            print(f"Created label for {field_name}")  # Debug print
+        
+        profile_layout.addStretch()
+        
+        # Add logout button at bottom
+        logout_btn = QPushButton('Logout')
+        logout_btn.clicked.connect(self.logout)
+        logout_btn.setStyleSheet("""
+            QPushButton {
+                background-color: #f44336;
+                color: white;
+                padding: 8px 16px;
+                font-weight: bold;
+                border-radius: 4px;
+            }
+            QPushButton:hover {
+                background-color: #da190b;
+            }
+        """)
+        profile_layout.addWidget(logout_btn)
+        
+        profile_page.setLayout(profile_layout)
+        print("Profile page initialization complete")  # Debug print
+        return profile_page
+
     def show_page(self, index):
         """Show the selected page and update button states."""
         self.content_stack.setCurrentIndex(index)
@@ -761,32 +774,63 @@ class MainWindow(QMainWindow):
 
     def show_login(self):
         """Show the login window."""
-        login_window = LoginWindow()
-        result = login_window.exec()
+        print("Opening login window...")  # Debug print
+        login_window = LoginWindow(self)
         
-        if result == QDialog.DialogCode.Accepted:
-            # Store user info from login window
-            self.user_id = login_window.user_id
-            self.username = login_window.username
-            self.client_id = login_window.client_id
-            self.client_secret = login_window.client_secret
-            self.show()  # Only show main window after successful login
-        else:
-            # Any other result (rejected, closed) should quit the app
+        if login_window.exec() == QDialog.DialogCode.Rejected:
+            print("Login window rejected, quitting...")  # Debug print
             QApplication.quit()
-
-    def on_login_successful(self, user_id):
-        """Handle successful login."""
-        self.user_id = user_id
-        user_info = self.db.get_user_info(user_id)
+            
+        # Get user info directly from database
+        db = DatabaseManager()
+        user_info = db.get_user_info(1)  # Hardcode to user ID 1 for now
+        
         if user_info:
+            print("Got user info from database:", user_info)  # Debug print
             self.username = user_info['username']
+            self.user_id = 1  # Hardcode for now
             self.client_id = user_info['client_id']
             self.client_secret = user_info['client_secret']
-        self.user_button.setText(self.username)
-        self.init_tray_icon()
-        self.update_status()
-        self.load_user_data()
+            
+            # Update UI
+            self.user_button.setText(self.username)
+            self.init_tray_icon()
+            self.update_status()
+            
+            # Show the main window
+            self.show()
+            self.activateWindow()
+            
+            # Show profile
+            self.show_profile()
+        else:
+            print("Failed to get user info from database")  # Debug print
+            QMessageBox.warning(self, 'Error', 'Could not load user information')
+            QApplication.quit()
+
+    def refresh_profile(self):
+        """Refresh the profile page with latest user info."""
+        print("Refreshing profile...")  # Debug print
+        
+        if not hasattr(self, 'info_labels'):
+            print("Warning: info_labels not initialized")
+            return
+            
+        # Update all labels with user info
+        print("Current user info:", {
+            'username': getattr(self, 'username', None),
+            'user_id': getattr(self, 'user_id', None),
+            'client_id': getattr(self, 'client_id', None),
+            'client_secret': getattr(self, 'client_secret', None)
+        })
+        
+        for field_name in ['username', 'user_id', 'client_id', 'client_secret']:
+            if self.info_labels.get(field_name):
+                value = getattr(self, field_name, '')
+                self.info_labels[field_name].setText(str(value or ''))
+                print(f"Updated {field_name} label with value: {value}")
+            else:
+                print(f"Warning: {field_name} label not found")
 
     def load_user_data(self):
         """Load user data after successful login."""
@@ -951,22 +995,8 @@ class MainWindow(QMainWindow):
 
     def show_profile(self):
         """Show user profile by switching to profile page."""
-        self.content_stack.setCurrentWidget(self.profile_page)
-        self.refresh_profile()  # Refresh profile info when showing the page
-
-    def refresh_profile(self):
-        """Refresh the profile page with latest user info."""
-        # Clear existing profile info
-        layout = self.profile_info_container.layout()
-        while layout.count():
-            child = layout.takeAt(0)
-            if child.widget():
-                child.widget().deleteLater()
-        
-        # Add user info
-        layout.addWidget(QLabel(f"User ID: {self.user_id}"))
-        layout.addWidget(QLabel(f"Username: {self.username}"))
-        layout.addWidget(QLabel(f"Client ID: {self.client_id}"))
+        self.show_page(4)  # Index 4 is the profile page
+        self.refresh_profile()
 
     def logout(self):
         """Handle user logout."""

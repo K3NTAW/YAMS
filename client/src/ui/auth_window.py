@@ -231,6 +231,7 @@ class LoginWindow(QDialog):
             self.username = user_info['username']
             self.client_id = user_info['client_id']
             self.client_secret = user_info['client_secret']
+            self.login_successful.emit(self.user_id)  # Emit the user ID
             self.accept()
         else:
             QMessageBox.warning(self, 'Login Failed', 'Invalid credentials')
@@ -277,5 +278,7 @@ class LoginWindow(QDialog):
     def closeEvent(self, event):
         """Handle window close event."""
         # If user clicks X button, reject the dialog which will close the app
+        self.reject()
+        event.accept()
         self.reject()
         event.accept()
