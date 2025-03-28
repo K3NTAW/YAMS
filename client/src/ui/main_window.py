@@ -5,7 +5,7 @@ from PyQt6.QtWidgets import (QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
                              QListWidgetItem, QTreeWidget, QTreeWidgetItem,
                              QTabWidget, QGroupBox, QRadioButton, QLineEdit,
                              QToolBar, QStyle, QCheckBox, QStatusBar, QApplication,
-                             QSizePolicy, QComboBox, QButtonGroup)
+                             QSizePolicy, QComboBox, QButtonGroup, QFileDialog)
 from PyQt6.QtCore import Qt, QTimer, pyqtSignal, QSettings, QMimeData
 from PyQt6.QtGui import QIcon, QAction, QDragEnterEvent, QDropEvent
 from .auth_window import LoginWindow
@@ -17,6 +17,9 @@ import asyncio
 import websockets
 import json
 import subprocess
+from ..core.plugin_loader import PluginLoader
+from .plugin_manager import PluginManagerDialog
+import darkdetect
 
 class ServerListWidget(QListWidget):
     """Custom list widget that supports drag and drop of server names."""
@@ -61,8 +64,9 @@ class PluginManagerDialog(QDialog):
     
     plugin_installed = pyqtSignal(str)  # Signal emitted when a plugin is installed
     
-    def __init__(self, plugin_dir: str, parent=None):
+    def __init__(self, plugin_loader, plugin_dir: str, parent=None):
         super().__init__(parent)
+        self.plugin_loader = plugin_loader
         self.plugin_dir = plugin_dir
         self.init_ui()
         
@@ -258,7 +262,14 @@ class MainWindow(QMainWindow):
         self.is_dark_mode = self.settings.value('dark_mode', None)  # None means follow system
         self.start_with_system = self.settings.value('start_with_system', False, type=bool)
         
+        # Initialize plugin system
+        self.plugin_loader = PluginLoader()
+        
+        # Set up UI
         self.init_ui()
+        
+        # Initialize plugins
+        self.init_plugins()
         
         # Apply theme after UI is initialized
         self.apply_theme()
@@ -329,72 +340,127 @@ class MainWindow(QMainWindow):
         
         # Create pages
         self.dashboard_page = QWidget()
-        self.devices_page = QWidget()
-        self.plugins_page = QWidget()
-        self.settings_page = self.init_settings_page()
-        self.profile_page = self.init_profile_page()
-        
-        # Initialize dashboard page
         dashboard_layout = QVBoxLayout()
         dashboard_layout.setContentsMargins(20, 20, 20, 20)
-        
-        # Server URL input
-        url_group = QWidget()
-        url_layout = QHBoxLayout()
-        url_layout.setContentsMargins(0, 0, 0, 0)
-        url_group.setLayout(url_layout)
-        
-        self.url_input = QLineEdit(self.server_url)
-        self.url_input.setPlaceholderText("Server URL (e.g., ws://localhost:8765)")
-        self.url_input.setParent(url_group)  # Ensure proper parent-child relationship
-        url_layout.addWidget(self.url_input)
-        
-        connect_btn = QPushButton("Connect")
-        connect_btn.clicked.connect(self.check_server_status)
-        connect_btn.setParent(url_group)  # Ensure proper parent-child relationship
-        url_layout.addWidget(connect_btn)
-        
-        dashboard_layout.addWidget(url_group)
-        
-        # Server list
-        self.server_list = ServerListWidget()
-        self.server_list.itemClicked.connect(self.on_server_selected)
-        dashboard_layout.addWidget(self.server_list)
-        
+        dashboard_layout.setSpacing(15)
         dashboard_layout.addStretch()
         self.dashboard_page.setLayout(dashboard_layout)
-        
+
         # Initialize devices page
         devices_layout = QVBoxLayout()
         devices_layout.setContentsMargins(20, 20, 20, 20)
-        devices_layout.addWidget(QLabel("Devices page - Coming soon"))
+        devices_layout.setSpacing(15)
         devices_layout.addStretch()
+        self.devices_page = QWidget()
         self.devices_page.setLayout(devices_layout)
-        
+
         # Initialize plugins page
         plugins_layout = QVBoxLayout()
         plugins_layout.setContentsMargins(20, 20, 20, 20)
+        plugins_layout.setSpacing(15)
+
+        # Plugin Overview
+        plugin_overview = QGroupBox("Plugin Overview")
+        plugin_overview.setStyleSheet("""
+            QGroupBox {
+                font-size: 16px;
+                font-weight: bold;
+                padding: 15px;
+                margin-top: 10px;
+            }
+            QGroupBox::title {
+                subcontrol-origin: margin;
+                left: 10px;
+                padding: 0 5px;
+            }
+        """)
+        plugin_layout = QVBoxLayout()
+        plugin_layout.setSpacing(10)
+
+        # Active Plugins Section
+        active_plugins = QGroupBox("Active Plugins")
+        active_plugins.setStyleSheet("QGroupBox { font-weight: normal; }")
+        active_layout = QVBoxLayout()
+        self.active_plugins_list = QListWidget()
+        self.active_plugins_list.setStyleSheet("""
+            QListWidget {
+                background-color: rgba(0, 255, 0, 0.1);
+                border-radius: 5px;
+                padding: 5px;
+            }
+        """)
+        active_layout.addWidget(self.active_plugins_list)
+        active_plugins.setLayout(active_layout)
+        plugin_layout.addWidget(active_plugins)
+
+        # Inactive Plugins Section
+        inactive_plugins = QGroupBox("Inactive Plugins")
+        inactive_plugins.setStyleSheet("QGroupBox { font-weight: normal; }")
+        inactive_layout = QVBoxLayout()
+        self.inactive_plugins_list = QListWidget()
+        self.inactive_plugins_list.setStyleSheet("""
+            QListWidget {
+                background-color: rgba(128, 128, 128, 0.1);
+                border-radius: 5px;
+                padding: 5px;
+            }
+        """)
+        inactive_layout.addWidget(self.inactive_plugins_list)
+        inactive_plugins.setLayout(inactive_layout)
+        plugin_layout.addWidget(inactive_plugins)
+
+        # Plugin Stats
+        stats_layout = QHBoxLayout()
+        self.total_plugins_label = QLabel("Total Plugins: 0")
+        self.active_count_label = QLabel("Active: 0")
+        self.commands_count_label = QLabel("Available Commands: 0")
         
-        # Plugin list
-        self.plugin_tree = QTreeWidget()
-        self.plugin_tree.setHeaderLabels(["Name", "Version", "Status"])
-        plugins_layout.addWidget(self.plugin_tree)
+        for label in [self.total_plugins_label, self.active_count_label, self.commands_count_label]:
+            label.setStyleSheet("""
+                QLabel {
+                    background-color: rgba(0, 0, 0, 0.1);
+                    padding: 5px 10px;
+                    border-radius: 3px;
+                }
+            """)
+            stats_layout.addWidget(label)
         
-        # Plugin buttons
-        plugin_buttons = QHBoxLayout()
+        plugin_layout.addLayout(stats_layout)
+        plugin_overview.setLayout(plugin_layout)
+        plugins_layout.addWidget(plugin_overview)
+
+        # Plugin Actions
+        actions_layout = QHBoxLayout()
         manage_plugins_btn = QPushButton("Manage Plugins")
         manage_plugins_btn.clicked.connect(self.show_plugin_manager)
-        plugin_buttons.addWidget(manage_plugins_btn)
-        plugins_layout.addLayout(plugin_buttons)
+        manage_plugins_btn.setStyleSheet("""
+            QPushButton {
+                padding: 8px 15px;
+                background-color: #007AFF;
+                color: white;
+                border-radius: 4px;
+                font-weight: bold;
+            }
+            QPushButton:hover {
+                background-color: #0056b3;
+            }
+        """)
+        actions_layout.addWidget(manage_plugins_btn)
+        actions_layout.addStretch()
+        plugins_layout.addLayout(actions_layout)
+        
         plugins_layout.addStretch()
         
+        self.plugins_page = QWidget()
         self.plugins_page.setLayout(plugins_layout)
         
         # Add pages to content stack
         self.content_stack.addWidget(self.dashboard_page)
         self.content_stack.addWidget(self.devices_page)
         self.content_stack.addWidget(self.plugins_page)
+        self.settings_page = self.init_settings_page()
         self.content_stack.addWidget(self.settings_page)
+        self.profile_page = self.init_profile_page()
         self.content_stack.addWidget(self.profile_page)
         
         main_layout.addWidget(self.content_stack)
@@ -537,7 +603,7 @@ class MainWindow(QMainWindow):
         # User menu
         self.user_menu = menubar.addMenu('User')
         self.user_menu.aboutToShow.connect(self.show_user_menu)
-        
+    
     def init_settings_page(self):
         """Initialize the settings page."""
         settings_page = QWidget()
@@ -880,24 +946,62 @@ class MainWindow(QMainWindow):
 
     def show_plugin_manager(self):
         """Show the plugin manager dialog."""
-        if hasattr(self, 'plugin_loader') and self.plugin_loader:
-            dialog = PluginManagerDialog(self.plugin_loader.plugin_dir, self)
-            if dialog.exec():
-                self.refresh_plugin_list()
-                self.update_status()
-        else:
-            QMessageBox.warning(self, "Error", "Plugin system is not available")
+        plugin_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), "extensions")
+        dialog = PluginManagerDialog(self.plugin_loader, plugin_dir, parent=self)
+        dialog.exec()  # We want to update regardless of dialog result
+        self.plugin_loader.load_plugins()  # Force reload all plugins
+        self.update_plugin_lists()
 
-    def refresh_plugin_list(self):
-        """Refresh the list of installed plugins."""
-        self.plugin_tree.clear()
-        if hasattr(self, 'plugin_loader') and self.plugin_loader:
-            plugins = self.plugin_loader.plugins
-            for name, plugin in plugins.items():
-                item = QTreeWidgetItem(self.plugin_tree)
-                item.setText(0, name)
-                item.setText(1, 'Loaded')
-                self.plugin_tree.addTopLevelItem(item)
+    def update_plugin_lists(self):
+        """Update the active and inactive plugin lists"""
+        self.active_plugins_list.clear()
+        self.inactive_plugins_list.clear()
+        
+        if not hasattr(self, 'plugin_loader'):
+            return
+            
+        active_count = 0
+        command_count = 0
+        
+        for plugin_name, plugin in self.plugin_loader.plugins.items():
+            # Skip system plugins
+            if plugin_name == "loader":
+                continue
+                
+            item = QListWidgetItem()
+            widget = QWidget()
+            layout = QHBoxLayout()
+            layout.setContentsMargins(5, 5, 5, 5)
+            
+            name_label = QLabel(plugin_name)
+            layout.addWidget(name_label)
+            
+            if plugin.is_active():
+                status_label = QLabel("Active")
+                status_label.setStyleSheet("color: green;")
+                active_count += 1
+                command_count += len(plugin.get_commands())
+                self.active_plugins_list.addItem(item)
+            else:
+                status_label = QLabel("Inactive")
+                status_label.setStyleSheet("color: gray;")
+                self.inactive_plugins_list.addItem(item)
+                
+            layout.addWidget(status_label)
+            layout.addStretch()
+            
+            widget.setLayout(layout)
+            item.setSizeHint(widget.sizeHint())
+            
+            if plugin.is_active():
+                self.active_plugins_list.setItemWidget(item, widget)
+            else:
+                self.inactive_plugins_list.setItemWidget(item, widget)
+        
+        total_plugins = len([p for p in self.plugin_loader.plugins if p != "loader"])
+        self.total_plugins_label.setText(f"Total Plugins: {total_plugins}")
+        self.active_count_label.setText(f"Active: {active_count}")
+        self.commands_count_label.setText(f"Available Commands: {command_count}")
 
     async def connect_to_server(self):
         """Try to connect to the server."""
@@ -1117,6 +1221,24 @@ class MainWindow(QMainWindow):
         
         self.settings.setValue('dark_mode', self.is_dark_mode)
         self.apply_theme()
+
+    def init_plugins(self):
+        """Initialize the plugin system."""
+        try:
+            # Add default plugin directories
+            default_plugin_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), "extensions")
+            self.plugin_loader.add_plugin_directory(default_plugin_dir)
+            
+            # Load plugins
+            self.plugin_loader.load_plugins()
+            
+            # Update UI
+            self.update_plugin_lists()
+            
+        except Exception as e:
+            print(f"Error initializing plugin system: {e}")
+            import traceback
+            traceback.print_exc()
 
 def create_gui():
     """Create and return the GUI application and main window."""
