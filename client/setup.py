@@ -1,51 +1,20 @@
-from setuptools import setup
-
-APP = ['src/main.py']
-DATA_FILES = [
-    ('assets/icons', ['assets/icons/app.icns']),
-    ('extensions', ['extensions/__init__.py']),
-    ('extensions/installed', ['extensions/installed/__init__.py']),
-    ('src/extensions', ['src/extensions/__init__.py']),
-    ('src/extensions/installed', ['src/extensions/installed/__init__.py'])
-]
-OPTIONS = {
-    'argv_emulation': False,  
-    'plist': {
-        'CFBundleName': 'YAMS',
-        'CFBundleDisplayName': 'YAMS',
-        'CFBundleIdentifier': 'com.yams.client',
-        'CFBundleVersion': "1.0.0",
-        'CFBundleShortVersionString': "1.0.0",
-        'LSMinimumSystemVersion': '10.15',
-        'NSHumanReadableCopyright': 'Copyright 2025 YAMS',
-        'CFBundleIconFile': 'app.icns'
-    },
-    'packages': ['PyQt6', 'cryptography', 'websockets', 'dotenv', 'darkdetect', 'psutil'],
-    'includes': ['cryptography', 'websockets', 'dotenv', 'darkdetect', 'psutil'],
-    'excludes': [],
-    'resources': ['assets', 'extensions', 'src/extensions'],
-    'iconfile': 'assets/icons/app.icns',
-    'strip': True,
-    'optimize': 2
-}
+from setuptools import setup, find_packages
 
 setup(
-    name="yams-desktop",
+    name="yams-client",
     version="1.0.0",
-    app=APP,
-    data_files=DATA_FILES,
-    options={'py2app': OPTIONS},
+    packages=find_packages(),
     install_requires=[
-        "PyQt6",
-        "websockets",
-        "python-dotenv",
-        "cryptography",
-        "darkdetect",
-        "psutil",
+        'PyQt6>=6.4.0',
+        'websockets>=10.4',
+        'python-dotenv>=1.0.0',
+        'mysql-connector-python>=8.0.32',
+        'bcrypt>=4.0.1',
+        'darkdetect>=0.8.0',
+        'cryptography>=40.0.0',
+        'requests>=2.28.0',
+        'psutil>=5.9.0',
+        'semver>=3.0.0',
     ],
-    entry_points={
-        'console_scripts': [
-            'yams=src.main:main',
-        ],
-    }
+    python_requires='>=3.9',
 )

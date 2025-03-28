@@ -44,3 +44,8 @@ ENV/
 *.db
 client/plugin_core/plugins/*
 !client/plugin_core/plugins/__init__.py
+
+# macOS App Bundle
+*.app
+*.dmg
+*.app.dSYM/
