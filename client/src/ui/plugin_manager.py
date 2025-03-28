@@ -1,7 +1,13 @@
 from PyQt6.QtWidgets import (QDialog, QVBoxLayout, QHBoxLayout, QPushButton, 
                                QListWidget, QListWidgetItem, QLabel, QFileDialog, QMessageBox, QTreeWidget, QTreeWidgetItem)
 from PyQt6.QtCore import Qt
+from PyQt6.QtGui import QColor
 import os
+
+COLORS = {
+    'success': QColor(0, 128, 0),  # Green
+    'disabled': QColor(128, 128, 128)  # Gray
+}
 
 class PluginManagerDialog(QDialog):
     def __init__(self, plugin_loader, plugin_dir, parent=None):
@@ -121,6 +127,7 @@ class PluginManagerDialog(QDialog):
             item.setText(0, plugin_name)
             item.setText(1, metadata.get('version', '1.0.0'))
             item.setText(2, 'Active' if plugin.is_active() else 'Inactive')
+            item.setForeground(2, COLORS['success' if plugin.is_active() else 'disabled'])
             self.plugin_tree.addTopLevelItem(item)
             
     def toggle_plugin(self, item: QTreeWidgetItem, column: int):
@@ -128,8 +135,9 @@ class PluginManagerDialog(QDialog):
         if column == 2:  # Status column
             plugin_name = item.text(0)
             plugin = self.plugin_loader.get_plugin(plugin_name)
-            if plugin:
+            if plugin and hasattr(plugin, 'is_active'):
                 new_state = not plugin.is_active()
                 if self.plugin_loader.set_plugin_active(plugin_name, new_state):
                     item.setText(2, 'Active' if new_state else 'Inactive')
-                    self.parent.update_plugin_lists()
+                    item.setForeground(2, COLORS['success' if new_state else 'disabled'])
+                    self.parent().update_plugin_lists()

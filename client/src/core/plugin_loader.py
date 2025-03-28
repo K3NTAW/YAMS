@@ -101,7 +101,7 @@ class PluginLoader:
     def execute_command(self, plugin_name: str, command: str, *args, **kwargs) -> bool:
         """Execute a command on a specific plugin."""
         plugin = self.get_plugin(plugin_name)
-        if plugin and plugin.is_active():
+        if plugin and hasattr(plugin, 'is_active') and plugin.is_active():
             return plugin.execute_command(command, *args, **kwargs)
         return False
     
@@ -109,8 +109,12 @@ class PluginLoader:
         """Set a plugin's active state."""
         plugin = self.plugins.get(plugin_name)
         if plugin and hasattr(plugin, '_active'):
-            plugin._active = active
+            # Save state to settings
             self.settings.setValue(f'plugins/{plugin_name}/active', active)
+            self.settings.sync()  # Force save settings
+            
+            # Update plugin state
+            plugin._active = active
             return True
         return False
     
